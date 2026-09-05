@@ -10,9 +10,12 @@ This document records empirical quantities that must be justified and frozen bef
 - Minimum effective irrigation event, `I_min` (mm): **TBD**
 - Maximum event/application capacity, `I_max` (mm day^-1 or event^-1): **TBD**
 - Minimum interval between irrigation events, `d_min` (days): **TBD**
+- Executable irrigation-depth resolution, `execution_resolution_mm`: **TBD**
+- Fixed/non-policy irrigation included in DSSAT `IRCM`, `nonpolicy_irrigation_mm`: **TBD**
+- Terminal DSSAT irrigation-accounting tolerance, `IRCM_tolerance_mm`: **TBD**
 - Fixed nitrogen schedule: **TBD**
 
-No value above should be chosen solely to make RL training easier.
+No value above should be chosen solely to make RL training easier. `execution_resolution_mm` must be justified from the effective execution precision of the real irrigation system and DSSAT management representation used in the experiment. Any fixed irrigation not chosen by the policy must be declared before training rather than absorbed into policy irrigation after the fact.
 
 ## 2. Yield target and risk settings
 
@@ -87,6 +90,8 @@ The following are primary and must be reported for every final management compar
 - lower-tail yield reliability;
 - probability of meeting the pre-specified yield target.
 
+Seasonal irrigation used in all primary outcomes must be based on executed management. Raw actor output must never be summed as agricultural water use.
+
 ## 9. Secondary/mechanistic outcomes
 
 Subject to validated DSSAT outputs:
@@ -100,9 +105,23 @@ Subject to validated DSSAT outputs:
 - soil-water-storage change;
 - dynamic marginal value of irrigation water.
 
-## 10. Formal-test lock
+## 10. DSSAT irrigation accounting audit
+
+For every accepted terminal episode, reconcile DSSAT seasonal irrigation against the externally audited management ledger:
+
+`expected_IRCM = nonpolicy_irrigation_mm + sum(executed_policy_irrigation_mm)`
+
+The episode is valid only if:
+
+`abs(DSSAT_IRCM - expected_IRCM) <= IRCM_tolerance_mm`.
+
+A failed reconciliation is an experiment error and the episode must not enter training summaries, model-selection statistics, or final-test results.
+
+Per-step rollout records must preserve both requested and executed irrigation, including projection/quantization reasons and whether DSSAT was rerun.
+
+## 11. Formal-test lock
 
 Before the independent final-test set is run, create a tagged protocol version containing all previously `TBD` quantities. After this lock:
 
-- do not alter `eta`, `alpha`, operational constraints, baseline definitions, climate thresholds, or test years in response to final-test performance;
+- do not alter `eta`, `alpha`, operational constraints, execution resolution, fixed irrigation accounting, baseline definitions, climate thresholds, or test years in response to final-test performance;
 - any change requires a new protocol version and a new untouched final-test set.
