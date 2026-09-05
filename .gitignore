@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Training outputs
+runs/
+outputs/
+checkpoints/
+logs/
+wandb/
+
+# DSSAT mutable runtime workspaces
+.dssat_rt/
+runtime/
+workspaces/
+
+# Large generated data
+artifacts/
+results/raw/
