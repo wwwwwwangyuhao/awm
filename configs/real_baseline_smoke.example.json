@@ -1,0 +1,33 @@
+{
+  "status": "template_only_replace_all_TBD_values_before_use",
+  "workspace": "TBD_WORKER_ROOT",
+  "dssat_exec": "TBD_DSSAT_EXECUTABLE",
+  "output_dir": "TBD_OUTPUT_DIRECTORY",
+  "cox_template": "TBD_FROZEN_VALIDATED_COX_TEMPLATE",
+  "rendered_cox": "TBD_WORKER_RENDERED_COX",
+  "summary_out": "TBD_SUMMARY_OUT",
+  "daily_out_files": [
+    "TBD_PlantGro.OUT",
+    "TBD_SoilWat.OUT",
+    "TBD_Weather.OUT",
+    "TBD_ET.OUT"
+  ],
+  "weather_file": "TBD_ACTIVE_WEATHER_FILE",
+  "soil_file": "TBD_SOIL_FILE",
+  "episode_artifacts": [],
+  "plant_yrdoy": "TBD_YYDDD",
+  "seasonal_budget_mm": "TBD",
+  "min_event_mm": "TBD",
+  "max_event_mm": "TBD",
+  "min_interval_days": "TBD",
+  "horizon_days": 125,
+  "execution_resolution_mm": "TBD",
+  "nonpolicy_irrigation_mm": "TBD",
+  "ircm_tolerance_mm": "TBD",
+  "yield_target_fraction": "TBD",
+  "timeout_seconds": 1800,
+  "baseline": {
+    "type": "TBD_ONE_OF_local_conventional__potential_et_water_balance__root_zone_rew_threshold",
+    "replace_with_parameters_from": "configs/baselines.example.json"
+  }
+}
