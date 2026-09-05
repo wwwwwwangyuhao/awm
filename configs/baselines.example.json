@@ -1,0 +1,21 @@
+{
+  "status": "example_only_not_protocol_locked",
+  "local_conventional": {
+    "schedule_mm_by_action_dap": {
+      "TBD_ACTION_DAP": "TBD_MM"
+    }
+  },
+  "potential_et_water_balance": {
+    "trigger_deficit_mm": "TBD",
+    "irrigation_efficiency": "TBD",
+    "effective_rain_fraction": "TBD",
+    "refill_fraction": "TBD"
+  },
+  "root_zone_rew_threshold": {
+    "trigger_rew": "TBD",
+    "event_depth_mm": "TBD",
+    "fallback_rew_layers_1_based": [
+      "TBD"
+    ]
+  }
+}
