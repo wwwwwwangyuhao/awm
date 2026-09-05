@@ -1,0 +1,22 @@
+{
+  "status": "candidate_provenance_not_protocol_locked",
+  "source_repository": "wwwwwwangyuhao/lrmb",
+  "source_branch": "exp/sapg",
+  "source_commit": "b6257a29249969ea4b43849debe3e65657902e7d",
+  "legacy_environment": {
+    "site_code": "XJHX",
+    "planting_doy": 119,
+    "emergence_doy": 133,
+    "decision_horizon_days": 125,
+    "legacy_max_irrigation_mm": 50.0
+  },
+  "tracked_assets": {
+    "dssat_exec": "dssat_workspace_template/dscsm048",
+    "dssatpro_l48": "dssat_workspace_template/DSSATPRO.L48",
+    "soil": "dssat_workspace_template/data/soil/SOIL.SOL",
+    "genotype_dir": "dssat_workspace_template/Genotype",
+    "era5_weather_dir": "dssat_workspace_template/data/wth/era5",
+    "station_weather_dir": "dssat_workspace_template/data/wth/station"
+  },
+  "warning": "Do not treat legacy agronomic settings as formal AWM values until the validated COX template and protocol are reviewed and locked."
+}
