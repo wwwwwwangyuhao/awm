@@ -1,172 +1,139 @@
 # Experimental Protocol — Pre-registration Skeleton
 
-This document records empirical quantities that must be justified and frozen before formal test-set evaluation.
+This document records empirical quantities that must be justified and frozen before formal test-set evaluation. The detailed agricultural lock is `docs/AGRICULTURAL_PROTOCOL_V1.md`; machine-readable constants are in `configs/agricultural_protocol_v1.json`.
 
 ## 1. Field, DSSAT experiment and irrigation-system constants
 
-- Study region/site: **TBD**
-- Irrigation system: **TBD**
-- Validated DSSAT COX template path/version: **TBD**
-- Validated DSSAT COX template SHA-256: **TBD**
-- Frozen-template provenance report path/SHA-256: **TBD**
-- Reference seasonal irrigation, `B_ref` (mm): **TBD**
-- Minimum effective irrigation event, `I_min` (mm): **TBD**
-- Maximum event/application capacity, `I_max` (mm day^-1 or event^-1): **TBD**
-- Minimum interval between irrigation events, `d_min` (days): **TBD**
-- Executable irrigation-depth resolution, `execution_resolution_mm`: **TBD**
-- Fixed/non-policy irrigation included in DSSAT `IRCM`, `nonpolicy_irrigation_mm`: **TBD**
-- Terminal DSSAT irrigation-accounting tolerance, `IRCM_tolerance_mm`: **TBD**
-- Fixed nitrogen schedule: **TBD; owned by the validated COX template**
+- Study region/site: **Huaxing Farm, Changji, Xinjiang, China; 44.223 N, 87.305 E**
+- Irrigation system: **film-mulched drip irrigation**
+- Validated DSSAT COX template path/version: **`run/formal/awm_protocol_v1_2000.COX.in`, agricultural protocol v1**
+- DSSAT build: **lab-modified DSSAT 4.8.5 mulch build, `dscsm048`**
+- Reference total seasonal irrigation, `B_ref_total`: **540 mm = 360 m3 mu^-1**
+- Fixed preplant establishment irrigation: **45 mm = 30 m3 mu^-1, three days before planting; non-policy**
+- Policy-controllable postplant quota: **W100 495 mm; W80 387 mm; W60 279 mm**
+- Total seasonal water treatments: **W100 540 mm; W80 432 mm; W60 324 mm**
+- Minimum positive irrigation execution: **0.1 mm**
+- Maximum event/application capacity, `I_max`: **45 mm event^-1**
+- Minimum interval between irrigation events, `d_min`: **0 days**
+- Executable irrigation-depth resolution: **0.1 mm**
+- Fixed/non-policy irrigation included in DSSAT `IRCM`: **45 mm**
+- Terminal DSSAT irrigation-accounting tolerance: **0.1 mm**
+- Fixed nitrogen schedule: **2025 T1 historical schedule, 235 kg N ha^-1, 10 positive events; provisional historical N locked for protocol v1**
+- Planting/emergence: **DOY 119 / DOY 133**
+- Cultivar: **calibrated `IB0007`**
+- Mulch: **`PMALB=0.12`, `PMWD=22.5`**
 
-No value above should be chosen solely to make RL training easier. `execution_resolution_mm` must be justified from the effective execution precision of the real irrigation system and DSSAT management representation used in the experiment. Any fixed irrigation not chosen by the policy must be declared before training rather than absorbed into policy irrigation after the fact.
+The RL layer injects only postplant policy irrigation rows at `{{AWM_IRRIGATION_EVENTS}}`. The formal COX owns the fixed 45-mm preplant establishment irrigation and all fixed non-water management.
 
-The first paper must not regenerate cultivar, initial soil conditions, mulch/residue settings, planting management or nitrogen management from hidden Python defaults. Those quantities belong to the externally validated DSSAT experiment template. The RL layer may inject only the policy irrigation rows at the explicit `{{AWM_IRRIGATION_EVENTS}}` marker.
+The WaterBudgetController quota is the postplant policy-controllable quota. Every accepted episode reconciles
 
-A candidate template generated from an older dynamic DSSAT workflow is not automatically validated. The source rendered COX, source SHA-256, frozen-template SHA-256, and the decision to retain/remove any pre-existing irrigation rows must be archived. Prefer freezing a successful no-policy/reset worker COX. Existing explicit irrigation rows may not be stripped without first classifying them as policy or fixed non-policy management.
+`expected_IRCM = 45 + sum(executed_policy_irrigation_mm)`.
+
+No empirical constant may be changed solely to make RL training easier.
 
 ## 2. Yield target and risk settings
 
-- Reference-yield definition, `Y_ref`: **TBD**
-- Canonical yield-protection target, `eta`: **TBD**
-- Lower-tail risk fraction, `alpha`: **TBD**
+- Reference-yield definition, `Y_ref(w)`: **year-specific W100 full-water DSSAT reference under the same weather and fixed non-water management**
+- Canonical yield-protection target, `eta`: **TBD before learned-method formal evaluation**
+- Lower-tail risk fraction, `alpha`: **TBD before learned-method formal evaluation**
 
-Candidate starting values such as `eta = 0.95` or `alpha = 0.10` are hypotheses only until justified and frozen.
+`Y_ref(w)` is offline reference information and is never exposed to the actor.
 
 ## 3. Seasonal water-scarcity treatments
 
-The intended main treatments are:
+Total seasonal limits, including the common 45-mm preplant event:
 
-- `W100`: **TBD mm**
-- `W80`: **TBD mm**
-- `W60`: **TBD mm**
+- `W100`: **540 mm total = 45 fixed + 495 policy-controllable**
+- `W80`: **432 mm total = 45 fixed + 387 policy-controllable**
+- `W60`: **324 mm total = 45 fixed + 279 policy-controllable**
 
-Each treatment must be defined relative to an agronomic/reference irrigation allocation, with exact depths frozen before formal evaluation.
+The quota is an upper bound, not a target use.
 
 ## 4. Weather-data split
 
-- Training weather years: **TBD**
-- Validation/model-selection weather years: **TBD**
-- Independent final-test weather years: **TBD**
+- Training weather years: **ERA5 2000-2017**
+- Validation/model-selection weather years: **ERA5 2018-2022**
+- Independent final-test weather years: **Huaxing Farm station 2023-2025**
 
-Rules:
-
-1. The three sets must be disjoint.
-2. Final-test years cannot influence architecture, reward/constraint design, hyperparameters, checkpoint selection, or baseline tuning.
-3. All competing methods are evaluated on exactly the same final-test weather realizations.
-4. Weather-source identity and file hashes/version must be archived with the protocol lock.
+Historical ERA5 provenance is archived under `provenance/weather/open_meteo_era5_pipeline_legacy/`. The final station set is untouched during architecture, reward/constraint design, hyperparameter selection, checkpoint selection and agricultural-baseline parameter selection.
 
 ## 5. Climate and crop-stage definitions
 
-Predefine thresholds for:
-
-- dry years;
-- normal years;
-- wet years;
-- hot–dry compound years.
-
-Classification must depend only on meteorological variables, not on algorithm outcomes.
+Predefine thresholds for dry, normal, wet and hot-dry compound years before post-hoc mechanism analysis. Classification must depend only on meteorological variables, not algorithm outcomes.
 
 Crop-stage boundaries used for post-hoc AWM mechanism analysis are also **TBD** and must be fixed from agronomic/DSSAT phenology definitions before formal analysis.
 
 ### Policy phenology encoding
 
-The current Step-3 canonical numeric policy observation is **79D = 74D leakage-safe DSSAT state + 5D water-allocation state**. No extra discrete phenological-stage code is exposed to the actor at this stage. Crop development is already represented continuously by DSSAT crop variables plus `dap_frac`.
-
-Accordingly, the earlier problem-formulation symbol `g_t` is interpreted in canonical v1 as developmental information contained within `x_t` and `dap_frac`, not as an additional arbitrarily coded scalar. Adding a separate stage input later is permitted only after its agronomic boundaries and numeric encoding are preregistered here.
+The canonical numeric policy observation is **79D = 74D leakage-safe DSSAT state + 5D water-allocation state**. No extra discrete phenological-stage code is exposed to the actor. Crop development is represented continuously by DSSAT crop variables plus `dap_frac`.
 
 ## 6. Agricultural management baselines
 
-Three non-learning agricultural baselines are implemented before any learned RL comparator. They all use the same `WaterBudgetController` and `DSSATIrrigationAdapter` as learned policies, so seasonal quota, minimum/maximum event depth, minimum event interval, execution resolution, and terminal IRCM reconciliation are identical across methods.
+Three non-learning agricultural baselines are implemented before any learned RL comparator. All use the same formal COX, fixed 45-mm preplant irrigation, postplant WaterBudgetController, action quantization and terminal IRCM reconciliation as learned policies.
 
 ### 6.1 Local conventional irrigation
 
 Implementation: `ConventionalScheduleBaseline`.
 
-Formal quantities to freeze:
+Source timing is the Huaxing 2023 W100 field schedule (`dssat_cultivar_calibration/data/COX/XJHX2301.COX`), because that treatment is the field 360 m3 mu^-1 / 540-mm full-water reference. Its preplant 45 mm is handled by the formal COX; postplant timing is translated to biological action DAP.
 
-- source of local schedule (field protocol/recommendation): **TBD**
-- source version/date/citation: **TBD**
-- schedule expressed as biological action DAP -> desired irrigation depth (mm): **TBD**
-
-The schedule uses the canonical temporal contract: policy day `d` selects irrigation applied on biological action DAP `d+1`. No conventional event dates or depths are embedded as software defaults.
-
-Under W100/W80/W60, the conventional rule is not allowed to bypass the common water budget. If an original event cannot be executed because the treatment quota/capacity/interval is active, requested and executed amounts are both logged and the common controller determines the feasible action.
+The final quota-normalized event depths for W100/W80/W60 are frozen in the agricultural-baseline protocol, not as hidden software defaults. All requested and executed amounts remain audited through the common controller.
 
 ### 6.2 DSSAT potential-ET water-balance irrigation
 
 Implementation: `PotentialETWaterBalanceBaseline`.
 
-The comparator is causal and uses current/past DSSAT state only. The current implementation uses daily `EOAA` as DSSAT potential evapotranspiration and `PRED` as current-day precipitation. Its observed deficit ledger is:
+The comparator is causal and uses current/past DSSAT state only. It uses daily `EOAA` as DSSAT potential evapotranspiration and `PRED` as current-day precipitation:
 
 `D <- max(0, D + EOAA - f_eff * PRED)`.
 
-An irrigation request is generated only after the deficit reaches the pre-specified trigger. Executed irrigation is fed back into the ledger:
+Executed irrigation is fed back as
 
 `D <- max(0, D - irrigation_efficiency * I_executed)`.
 
-Formal quantities to freeze:
-
-- `trigger_deficit_mm`: **TBD**
-- `irrigation_efficiency`: **TBD**
-- `effective_rain_fraction`: **TBD**
-- `refill_fraction`: **TBD**
-- agronomic/literature justification for all four quantities: **TBD**
-
-This baseline is deliberately not labelled FAO-56 in canonical v1. The currently inherited weather inventory contains SRAD, TMAX, TMIN, RAIN, and WIND but does not provide the full validated meteorological input set needed to claim a strict FAO-56 Penman–Monteith ET0 implementation. A true FAO-56 baseline may be added only as a separately preregistered comparator when the required meteorological inputs/ET0 source are available and validated.
+The formal parameter values and their literature/field justifications are frozen in the agricultural-baseline protocol. This comparator is deliberately not labelled a full FAO-56 Penman-Monteith implementation.
 
 ### 6.3 Root-zone REW threshold irrigation
 
 Implementation: `RootZoneREWThresholdBaseline`.
 
-The rule estimates active root-zone water status from the same decision-time variables exposed to the policy:
-
 `REW_root = sum(REWi * RLiD) / sum(RLiD), i=1..10`.
 
-Before root-length values are numerically available, an explicitly frozen set of 1-based REW layers is averaged. No fallback soil depth is hidden in code.
-
-Formal quantities to freeze:
-
-- `trigger_rew`: **TBD**
-- `event_depth_mm`: **TBD**
-- `fallback_rew_layers_1_based`: **TBD**
-- agronomic/literature justification: **TBD**
+Before root length is positive, a preregistered shallow-layer fallback is used. The formal threshold, event depth and fallback layers are frozen in the agricultural-baseline protocol.
 
 ### 6.4 Learned methods
 
-4. Standard RL baseline: **TBD algorithm/configuration; implement only after the three agricultural baselines and real DSSAT smoke are accepted**
-5. RCWA-RL: **implement after the standard RL baseline contract is frozen**
+4. Standard RL baseline: implement only after the three agricultural baseline formal smoke runs are accepted.
+5. RCWA-RL: implement after the standard RL baseline contract is frozen.
 
-The three agricultural baselines must be calibrated/tuned, if tuning is necessary, using training/validation conditions only. Final-test weather cannot be used to select conventional schedule variants, ET parameters, or REW thresholds.
+Agricultural-baseline parameter selection must not inspect 2023-2025 station final-test outcomes.
 
 ## 7. Replication
 
 - Independent RL training seeds per learned method: **TBD**
-- DSSAT stochasticity, if any: **TBD**
-- Site/soil repetitions: **TBD**
-- Field-block repetitions, if field validation is performed: **TBD**
+- DSSAT stochasticity: deterministic for fixed input and build unless demonstrated otherwise
+- Site/soil repetitions: **one locked site/soil profile in protocol v1**
+- Field-block repetitions for later real field validation: **TBD from field design**
 
 Best-seed-only reporting is prohibited.
 
-Deterministic agricultural baselines are evaluated once per unique site × soil × weather × water-budget condition unless an explicitly stochastic component is introduced. Statistical replication comes from the paired independent environmental units, not repeated identical deterministic simulations.
+Deterministic agricultural baselines are evaluated once per unique site × soil × weather × water-budget condition.
 
 ## 8. Primary outcomes
 
-The following are primary and must be reported for every final management comparison:
+Primary outcomes:
 
 - cotton yield (kg ha^-1);
-- seasonal irrigation (mm);
-- irrigation-water saving relative to baseline (%);
+- total seasonal irrigation (mm), including the fixed 45-mm preplant event;
+- postplant policy-controlled irrigation (mm), reported separately;
+- irrigation-water saving relative to the preregistered baseline (%);
 - irrigation water productivity (kg m^-3);
 - lower-tail yield reliability;
 - probability of meeting the pre-specified yield target.
 
-Seasonal irrigation used in all primary outcomes must be based on executed management. Raw actor/rule requests must never be summed as agricultural water use.
+Seasonal irrigation is based only on executed management. Raw actor/rule requests are never summed as agricultural water use.
 
-For the current implementation, irrigation water productivity is calculated from terminal DSSAT seasonal irrigation as:
-
-`IWP = HWAM / (10 * IRCM)`
-
-when `IRCM > 0`, with units kg m^-3 if HWAM is kg ha^-1 and IRCM is mm.
+`IWP = HWAM / (10 * IRCM)` for `IRCM > 0`.
 
 ## 9. Secondary/mechanistic outcomes
 
@@ -183,44 +150,29 @@ Subject to validated DSSAT outputs:
 
 ## 10. DSSAT irrigation accounting audit
 
-For every accepted terminal episode, reconcile DSSAT seasonal irrigation against the externally audited management ledger:
+For every accepted terminal episode:
 
-`expected_IRCM = nonpolicy_irrigation_mm + sum(executed_policy_irrigation_mm)`
+`expected_IRCM = 45 mm + sum(executed_policy_irrigation_mm)`.
 
-The episode is valid only if:
+The episode is valid only if
 
-`abs(DSSAT_IRCM - expected_IRCM) <= IRCM_tolerance_mm`.
+`abs(DSSAT_IRCM - expected_IRCM) <= 0.1 mm`.
 
-A failed reconciliation is an experiment error and the episode must not enter training summaries, model-selection statistics, or final-test results.
-
-Per-step rollout/baseline records must preserve both requested and executed irrigation, including projection/quantization reasons and whether DSSAT was rerun.
+A failed reconciliation is an experiment error and cannot enter training summaries, model selection or final statistics.
 
 ## 11. Real-worker preflight and smoke lock
 
-Before any RL training run is accepted:
+Before learned-method training is accepted:
 
-1. identify the exact legacy/current DSSAT executable, runtime profile, soil, genotype, weather, and generated experiment-file provenance;
-2. freeze a known-good rendered no-policy/reset COX with `python -m awm.dssat.freeze_template ...`;
-3. archive the source/template SHA-256 report and manually verify that fixed nitrogen, cultivar, initial soil conditions, planting, mulch/residue, and non-policy management are the intended AWM experiment;
-4. the worker-local `DSSATPRO.L48` fixed-width preflight must pass;
-5. one real DSSAT worker must complete a baseline reset season from the validated COX template;
-6. the planting-day daily state must parse successfully;
-7. `Summary.OUT` must contain at least `HWAM` and `IRCM`;
-8. one complete 125-day agricultural-baseline episode must finish with a passing terminal IRCM reconciliation audit;
-9. run all three agricultural baseline policies on at least one designated smoke weather year and archive their action audits;
-10. only then begin implementation/training of the learned standard RL baseline.
-
-The exact smoke configuration, template hashes, DSSAT asset versions, and smoke outputs used for the formal experiment must be archived with the protocol lock.
-
-### Candidate legacy provenance currently identified
-
-The previously operational DSSAT workflow in repository `wwwwwwangyuhao/lrmb`, branch `exp/sapg`, commit `b6257a29249969ea4b43849debe3e65657902e7d` contains candidate runtime assets including `dssat_workspace_template/dscsm048`, `DSSATPRO.L48`, genotype files, `SOIL.SOL`, ERA5 weather for 2000–2025, and station weather for 2023–2025. The old canonical environment used site code XJHX, planting DOY 119, emergence DOY 133, and a 125-decision horizon.
-
-These values establish provenance only. They are not formal AWM agronomic constants until the frozen COX and experiment protocol are reviewed and locked.
+1. the exact DSSAT executable/assets and formal COX provenance are versioned;
+2. worker-local `DSSATPRO.L48` A80 preflight passes;
+3. formal reset runs in the hashed AWM runtime;
+4. planting-day state parses;
+5. all 13 canonical daily OUT files are present/non-empty;
+6. formal reset reconciles `IRCM=45 mm` with zero policy irrigation and `NICM=235 kg ha^-1`;
+7. each of the three agricultural baselines completes a 125-day formal smoke with terminal IRCM reconciliation;
+8. only then begin the learned standard RL baseline.
 
 ## 12. Formal-test lock
 
-Before the independent final-test set is run, create a tagged protocol version containing all previously `TBD` quantities. After this lock:
-
-- do not alter `eta`, `alpha`, operational constraints, execution resolution, fixed irrigation accounting, DSSAT template, conventional schedule, ET baseline parameters, REW baseline parameters, learned-method definitions, climate thresholds, crop-stage definitions, or test years in response to final-test performance;
-- any change requires a new protocol version and a new untouched final-test set.
+Before 2023-2025 station final evaluation, freeze all remaining `TBD` quantities, including `eta`, `alpha`, baseline parameter definitions, climate thresholds, crop-stage analysis definitions and learned-method settings. Do not alter them in response to final-test performance; any scientific change requires a new protocol version and a new untouched final-test set.

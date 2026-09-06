@@ -5,11 +5,15 @@ on:
   push:
     branches:
       - feat/one-event-irrigation-smoke-v1
+      - feat/agricultural-protocol-v1
   pull_request:
     paths:
       - 'dssat_workspace_template/**'
       - 'run/real_smoke/**'
+      - 'run/formal/**'
       - 'configs/engineering_*smoke*.json'
+      - 'configs/formal_*smoke*.json'
+      - 'configs/agricultural_protocol_v1.json'
       - 'src/awm/dssat/**'
       - 'src/awm/envs/**'
       - 'src/awm/baselines/**'
@@ -27,12 +31,35 @@ jobs:
           python-version: '3.11'
       - name: Make custom DSSAT executable runnable
         run: chmod +x dssat_workspace_template/dscsm048
-      - name: Real zero-event reset smoke
+      - name: Real engineering zero-event reset smoke
         run: |
           python -m awm.dssat.smoke \
             --config configs/engineering_reset_smoke_v3_2000.json
-      - name: Real one-event irrigation smoke
+      - name: Real engineering one-event irrigation smoke
         run: |
           python -m awm.baselines.one_event_smoke \
             --config configs/engineering_one_event_smoke_v3_2000.json \
             --audit-output /tmp/awm_one_event.audit.json
+      - name: Audit formal agricultural COX v1
+        run: |
+          python - <<'PY'
+          from awm.dssat.cox_audit import audit_cox_template
+          report = audit_cox_template(
+              'run/formal/awm_protocol_v1_2000.COX.in',
+              expected_nonpolicy_irrigation_mm=45.0,
+              irrigation_tolerance_mm=0.1,
+          )
+          print(report)
+          if report['structural_status'] != 'passed':
+              raise SystemExit('formal COX structural audit failed')
+          if not report['protocol_ready']:
+              raise SystemExit(f"formal COX protocol audit failed: {report['review_flags']}")
+          if abs(float(report['explicit_nonpolicy_irrigation_total_mm']) - 45.0) > 0.1:
+              raise SystemExit('formal COX fixed preplant irrigation is not 45 mm')
+          if abs(float(report['explicit_fertilizer_n_total_kg_ha']) - 235.0) > 1e-9:
+              raise SystemExit('formal COX fixed-N total is not 235 kg/ha')
+          PY
+      - name: Real formal protocol-v1 reset smoke
+        run: |
+          python -m awm.dssat.smoke \
+            --config configs/formal_reset_smoke_protocol_v1_2000.json

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -91,10 +92,60 @@ def _fertilizer_n_total(rows: list[str]) -> float | None:
     return float(sum(values))
 
 
-def audit_cox_template(path: str | Path) -> dict[str, object]:
+def _irrigation_total(rows: list[str]) -> float | None:
+    if not rows:
+        return 0.0
+    values: list[float] = []
+    for row in rows:
+        parts = row.split()
+        if len(parts) < 4:
+            return None
+        try:
+            values.append(float(parts[3]))
+        except ValueError:
+            return None
+    return float(sum(values))
+
+
+def _management_switches(rows: list[str]) -> dict[str, str]:
+    """Parse the DSSAT @N MANAGEMENT switch row.
+
+    DSSAT's SIMULATION.CDE defines the five switches after the row code as
+    PLANT, IRRIG, FERTI, RESID and HARVS.  For this AWM protocol, IRRIG=R and
+    FERTI=R mean that irrigation and fertilizer are taken only from reported
+    explicit management rows.  The AUTOMATIC MANAGEMENT parameter tables may
+    remain present in FileX but are inert unless an automatic mode is selected.
+    """
+    if len(rows) != 1:
+        return {}
+    parts = rows[0].split()
+    if len(parts) < 7:
+        return {}
+    return {
+        "planting": parts[2].upper(),
+        "irrigation": parts[3].upper(),
+        "fertilization": parts[4].upper(),
+        "residue": parts[5].upper(),
+        "harvest": parts[6].upper(),
+    }
+
+
+def audit_cox_template(
+    path: str | Path,
+    *,
+    expected_nonpolicy_irrigation_mm: float = 0.0,
+    irrigation_tolerance_mm: float = 1e-6,
+) -> dict[str, object]:
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise FileNotFoundError(source)
+
+    expected_nonpolicy = float(expected_nonpolicy_irrigation_mm)
+    tolerance = float(irrigation_tolerance_mm)
+    if not math.isfinite(expected_nonpolicy) or expected_nonpolicy < 0.0:
+        raise ValueError("expected_nonpolicy_irrigation_mm must be finite and >= 0")
+    if not math.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("irrigation_tolerance_mm must be finite and >= 0")
 
     text = source.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -112,6 +163,8 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
     automatic_nitrogen_rows = _safe_rows(
         lines, ("@N", "NITROGEN", "NMDEP", "NMTHR")
     )
+    management_switches = _management_switches(management_rows)
+    explicit_irrigation_total = _irrigation_total(irrigation_rows)
 
     marker_count = text.count(IRRIGATION_MARKER)
     structural_errors: list[str] = []
@@ -119,9 +172,13 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         structural_errors.append(
             f"AWM irrigation marker count must be exactly one, got {marker_count}"
         )
-    if irrigation_rows:
+    if explicit_irrigation_total is None:
+        structural_errors.append("explicit irrigation rows are not parseable")
+    elif abs(explicit_irrigation_total - expected_nonpolicy) > tolerance:
         structural_errors.append(
-            "template contains explicit irrigation rows in addition to the AWM marker"
+            "explicit fixed/nonpolicy irrigation mismatch: "
+            f"actual={explicit_irrigation_total}, expected={expected_nonpolicy}, "
+            f"tolerance={tolerance}"
         )
     if not cultivar_rows:
         structural_errors.append("cultivar row not found")
@@ -136,6 +193,11 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
     note = _value_after_label(lines, "@NOTE")
     fertilizer_n_total = _fertilizer_n_total(fertilizer_rows)
 
+    irrigation_mode = management_switches.get("irrigation")
+    fertilization_mode = management_switches.get("fertilization")
+    automatic_irrigation_active = irrigation_mode in {"A", "F", "P", "W"}
+    automatic_nitrogen_active = fertilization_mode in {"A", "F"}
+
     review_flags: list[str] = []
     descriptive = " ".join(
         value for value in (experiment_details, address, site) if value
@@ -149,14 +211,23 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         review_flags.append("explicit_fertilizer_n_schedule_not_parseable")
     elif fertilizer_n_total <= 0.0:
         review_flags.append("explicit_fertilizer_n_total_is_zero")
-    if automatic_irrigation_rows:
-        review_flags.append(
-            "automatic_irrigation_settings_present_verify_management_control_semantics"
-        )
-    if automatic_nitrogen_rows:
-        review_flags.append(
-            "automatic_nitrogen_settings_present_verify_management_control_semantics"
-        )
+
+    if not management_switches:
+        review_flags.append("management_switch_row_not_parseable")
+    else:
+        if irrigation_mode != "R":
+            review_flags.append(
+                "irrigation_management_switch_must_be_reported_R_for_AWM_policy_rows"
+            )
+        if fertilization_mode != "R":
+            review_flags.append(
+                "fertilization_management_switch_must_be_reported_R_for_fixed_N"
+            )
+
+    if automatic_irrigation_rows and automatic_irrigation_active:
+        review_flags.append("automatic_irrigation_is_active")
+    if automatic_nitrogen_rows and automatic_nitrogen_active:
+        review_flags.append("automatic_nitrogen_is_active")
 
     return {
         "path": str(source),
@@ -176,11 +247,17 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         "mulch_rows": mulch_rows,
         "planting_rows": planting_rows,
         "explicit_irrigation_rows": irrigation_rows,
+        "explicit_nonpolicy_irrigation_total_mm": explicit_irrigation_total,
+        "expected_nonpolicy_irrigation_mm": expected_nonpolicy,
+        "irrigation_tolerance_mm": tolerance,
         "fertilizer_rows": fertilizer_rows,
         "explicit_fertilizer_n_total_kg_ha": fertilizer_n_total,
         "management_rows": management_rows,
+        "management_switches": management_switches,
         "automatic_irrigation_rows": automatic_irrigation_rows,
         "automatic_nitrogen_rows": automatic_nitrogen_rows,
+        "automatic_irrigation_active": automatic_irrigation_active,
+        "automatic_nitrogen_active": automatic_nitrogen_active,
     }
 
 
@@ -190,9 +267,24 @@ def main() -> None:
     )
     parser.add_argument("cox")
     parser.add_argument("--output")
+    parser.add_argument(
+        "--expected-nonpolicy-irrigation-mm",
+        type=float,
+        default=0.0,
+        help="fixed explicit irrigation expected in the template before AWM policy rows",
+    )
+    parser.add_argument(
+        "--irrigation-tolerance-mm",
+        type=float,
+        default=1e-6,
+    )
     args = parser.parse_args()
 
-    report = audit_cox_template(args.cox)
+    report = audit_cox_template(
+        args.cox,
+        expected_nonpolicy_irrigation_mm=args.expected_nonpolicy_irrigation_mm,
+        irrigation_tolerance_mm=args.irrigation_tolerance_mm,
+    )
     payload = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         destination = Path(args.output)
