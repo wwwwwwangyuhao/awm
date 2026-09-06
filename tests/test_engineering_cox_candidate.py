@@ -21,6 +21,7 @@ def test_engineering_cox_is_structurally_valid_but_not_protocol_ready():
     assert report["structural_status"] == "passed"
     assert report["marker_count"] == 1
     assert report["explicit_irrigation_rows"] == []
+    assert report["explicit_nonpolicy_irrigation_total_mm"] == 0.0
     assert report["protocol_ready"] is False
 
     flags = set(report["review_flags"])
@@ -31,7 +32,7 @@ def test_engineering_cox_is_structurally_valid_but_not_protocol_ready():
     assert "explicit_fertilizer_n_total_is_zero" in flags
 
     # DSSAT SIMULATION.CDE defines IRRIG=R and FERTI=R as reported-date
-    # management.  The automatic-parameter tables are therefore inert; their
+    # management. The automatic-parameter tables are therefore inert; their
     # mere presence is no longer treated as an agronomic blocker.
     assert report["management_switches"]["irrigation"] == "R"
     assert report["management_switches"]["fertilization"] == "R"
@@ -110,25 +111,25 @@ def test_provenance_explicitly_blocks_formal_use():
     assert len(provenance["known_review_blockers"]) >= 4
 
 
-def test_agronomic_review_is_not_cleared_by_zero_ircm_alone():
+def test_agronomic_review_is_not_cleared_by_irrigation_accounting_alone():
     assert (
         _agronomic_review_required(
             formal_protocol_locked=False,
-            nonpolicy_irrigation_detected=False,
+            irrigation_accounting_review_required=False,
         )
         is True
     )
     assert (
         _agronomic_review_required(
             formal_protocol_locked=True,
-            nonpolicy_irrigation_detected=True,
+            irrigation_accounting_review_required=True,
         )
         is True
     )
     assert (
         _agronomic_review_required(
             formal_protocol_locked=True,
-            nonpolicy_irrigation_detected=False,
+            irrigation_accounting_review_required=False,
         )
         is False
     )
