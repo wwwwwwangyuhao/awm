@@ -2,23 +2,16 @@
 
 ## Goal
 
-After the one-time asset migration is committed, a fresh clone of
-`wwwwwwangyuhao/awm` must contain every DSSAT asset required by the AWM cotton
-environment. LRMB is then no longer a runtime dependency.
+A fresh clone of `wwwwwwangyuhao/awm` contains every static DSSAT asset required
+by the AWM cotton environment. LRMB is not a runtime dependency.
 
-The versioned assets live in:
+The immutable, version-controlled simulator template lives in:
 
 ```text
 dssat_workspace_template/
 ```
 
-Mutable episode workers live in an ignored runtime directory such as:
-
-```text
-runtime/w0/
-```
-
-Never run DSSAT directly in the versioned template.
+DSSAT must never run directly in that directory.
 
 ## Simulator identity
 
@@ -32,131 +25,196 @@ cotton experiments:
   `37c88710d0518d4e20a02881e884652973f559c3`
 - source size: 14,603,784 bytes
 
-This executable is **not** an unmodified official DSSAT 4.8.5 binary. It is the
-laboratory build based on DSSAT 4.8.5 with the mulch functionality required by
-the experiment COX setup. The exact source patch/compiler provenance remains a
-separate reproducibility item and is recorded as TBD until archived.
+This executable is not an unmodified official DSSAT 4.8.5 binary. It is the
+laboratory build based on DSSAT 4.8.5 with mulch functionality required by the
+experiment COX setup. Exact source-patch/compiler provenance remains a separate
+reproducibility item until archived.
 
-## One-time migration
+## Why mutable workers do not live under the checkout
 
-The migration utility is stored in AWM itself:
+DSSAT v4.8.x reads `DSSATPRO.L48` through legacy fixed-width A80 records. If a
+worker inherits an arbitrarily long Git checkout/worktree path, a valid checkout
+name can make an L48 record exceed 80 ASCII bytes.
 
-```bash
-cd /home/wangyh24/awm_step4
-
-PYTHONPATH="$PWD/src" \
-python scripts/import_dssat_assets.py \
-  --source-repo /home/wangyh24/lrmb
-```
-
-The command reads exactly:
+Therefore AWM separates:
 
 ```text
-wwwwwwangyuhao/lrmb
-commit d56336e09fdb9a9aea60ae61eaa892833314ab33
-path dssat_workspace_template/
+Git checkout
+  dssat_workspace_template/     immutable, version controlled
+
+~/.dssat_rt/awm/<10hex>/        mutable, generated, short path
+  project.json
+  .workspace.lock
+  w/
+    p0e0/
+    p0e1/
+    ...
+  e/
+  archives/
 ```
 
-by `git archive`.
-
-It does **not** checkout that commit, switch the LRMB branch, reset LRMB, create
-an LRMB worktree, modify LRMB files, or create an LRMB commit.
-
-The script validates the custom executable's Git blob identity and size before
-copying anything.
-
-## Canonical asset subset
-
-The AWM template includes:
-
-- `dscsm048`;
-- root CDE files needed by the executable;
-- canonical cotton `COGRO048.CUL`, `COGRO048.ECO`, `COGRO048.SPE`;
-- `StandardData/CO2048.WDA` and `FERCH048.SDA`;
-- DSSAT CDE data files;
-- `data/soil/SOIL.SOL`;
-- ERA5 weather `XJHX0001.WTH` through `XJHX2501.WTH`;
-- station weather for 2023, 2024 and 2025.
-
-The following historical/reference assets are deliberately not part of the
-canonical runtime:
-
-- `Genotype/COGRO048_别人的参数.CUL`;
-- `data/wth/legacy_import/`;
-- `DSSATPRO_完整版.L48`.
-
-The old absolute-path `DSSATPRO.L48` is kept only under
-`provenance/source_DSSATPRO.L48`; it is never used to run AWM.
-
-## Provenance
-
-The migration writes:
+The 10-hex namespace is:
 
 ```text
-dssat_workspace_template/ASSET_MANIFEST.json
+sha256(resolved_project_root)[:10]
 ```
 
-with SHA256 and Git-blob SHA-1 for every copied file, the fixed LRMB source
-commit, the simulator build label, weather inventory, and excluded historical
-items.
+Renaming or moving a checkout intentionally creates a new namespace. Reusing
+the same resolved checkout path reuses the same namespace.
 
-After migration, review:
+## LRMB coexistence
+
+LRMB already uses `~/.dssat_rt/<hash>/...`. AWM deliberately uses the child
+namespace:
+
+```text
+~/.dssat_rt/awm/<hash>/...
+```
+
+AWM also keeps its own:
+
+```text
+~/.dssat_rt/awm/registry.json
+~/.dssat_rt/awm/.registry.lock
+```
+
+It does not read or write LRMB's root-level `~/.dssat_rt/registry.json`, worker
+roots, archives, or locks. Sharing the top-level `.dssat_rt` directory is only a
+filesystem grouping convention; the mutable runtime namespaces are isolated.
+
+The AWM runtime base can be overridden explicitly with:
 
 ```bash
-python -m json.tool dssat_workspace_template/ASSET_MANIFEST.json | less
+export AWM_DSSAT_RUNTIME_BASE=/short/custom/path
 ```
 
-Then run:
+The A80 preflight remains mandatory even with the short-path layout.
 
-```bash
-PYTHONPATH="$PWD/src" python -m pytest
-```
+## Canonical worker creation
 
-If correct, commit only to the AWM branch:
-
-```bash
-git add dssat_workspace_template
-git commit -m "assets: vendor custom DSSAT 4.8.5 mulch runtime"
-git push
-```
-
-From that commit onward, a fresh AWM clone no longer needs LRMB to prepare a
-worker.
-
-## Worker creation
-
-AWM creates a writable worker from the immutable template:
+New AWM code should use the high-level project-aware API:
 
 ```python
-from awm.dssat.runtime_assets import prepare_worker_from_template
+from pathlib import Path
+from awm.dssat import prepare_project_worker
 
-prepare_worker_from_template(
-    "dssat_workspace_template",
-    "runtime/w0",
+project_root = Path.cwd().resolve()
+report = prepare_project_worker(
+    project_root / "dssat_workspace_template",
+    project_root=project_root,
+    policy_idx=0,
+    env_idx=0,
     replace=True,
 )
+print(report["workspace"])
 ```
 
-This:
+For a checkout such as:
 
-1. copies the AWM-owned template;
-2. makes the custom executable executable;
-3. creates writable DSSAT episode directories;
-4. generates a worker-local `DSSATPRO.L48`;
-5. runs the A80 fixed-width preflight.
+```text
+/home/wangyh24/awm_some_very_long_experiment_name
+```
 
-The generated profile contains only AWM worker paths. It must never reference
-`lrmb`, `ppo`, or any other historical repository.
+the actual DSSAT worker is still similar to:
+
+```text
+/home/wangyh24/.dssat_rt/awm/12ab34cd56/w/p0e0
+```
+
+The checkout name itself is not written into worker `DSSATPRO.L48` records.
+
+`prepare_worker_from_template(template, workspace)` remains available only as a
+low-level explicit-path primitive for tests and special tooling. Canonical AWM
+training/evaluation code should use `prepare_project_worker`.
+
+## Runtime registry
+
+Calling the project-aware runtime API creates:
+
+```text
+~/.dssat_rt/awm/registry.json
+```
+
+Each record maps a 10-character runtime ID back to the resolved AWM checkout and
+records worker/evaluation/archive roots. Updates are protected by a Linux
+`flock` on `.registry.lock`.
+
+Each runtime root also contains:
+
+```text
+project.json
+```
+
+for direct human inspection.
+
+## Process lock
+
+`WorkspaceRootLock` provides an exclusive lock for one checkout's hashed DSSAT
+runtime. A future training launcher must hold this lock for the full training
+process, not only during worker creation, so two accidental launches of the same
+checkout cannot overwrite the same `p<policy>e<env>` workers.
+
+Example:
+
+```python
+from awm.dssat import WorkspaceRootLock
+
+with WorkspaceRootLock(project_root=project_root):
+    # create workers and keep the lock while the run owns them
+    ...
+```
+
+## Worker naming
+
+Training workers use compact algorithm-neutral names:
+
+```text
+p<policy_idx>e<env_idx>
+```
+
+Examples:
+
+```text
+p0e0
+p0e1
+p1e0
+```
+
+This keeps L48 paths short and does not encode PPO, RCWA-RL, or any other
+algorithm into simulator infrastructure.
+
+## A80 safety
+
+Short paths are the primary design constraint, but every generated worker still
+runs `validate_dssatpro_record_width()` before DSSAT execution. Every meaningful
+profile record must be ASCII and no longer than 80 bytes.
+
+Thus the runtime contract is:
+
+```text
+short path by construction
++
+A80 validation before execution
+```
+
+## Asset provenance
+
+`dssat_workspace_template/ASSET_MANIFEST.json` records SHA256 and Git-blob SHA-1
+for the vendored simulator assets, the simulator build identity, weather
+inventory, and excluded historical files.
+
+The historical absolute-path `DSSATPRO.L48` is kept only as provenance. AWM
+workers always generate a fresh worker-local profile.
 
 ## Zero-LRMB acceptance test
 
-After the migration commit is pushed, the strongest isolation check is:
+A complete isolation check is:
 
-1. fresh-clone AWM to a new directory;
-2. do not clone LRMB there;
-3. prepare a worker from `dssat_workspace_template`;
-4. pass unit tests;
-5. pass real DSSAT reset smoke;
-6. pass a complete 125-day one-event irrigation smoke and IRCM reconciliation.
-
-Only after that should AWM be considered fully detached from LRMB.
+1. fresh clone AWM to any checkout name;
+2. do not clone LRMB;
+3. call `prepare_project_worker`;
+4. verify the worker is under `~/.dssat_rt/awm/<hash>/w/...`;
+5. verify worker `DSSATPRO.L48` contains no `lrmb` or `ppo` path;
+6. pass unit tests;
+7. pass real DSSAT reset smoke;
+8. pass the complete 125-day one-event irrigation smoke and IRCM reconciliation.
