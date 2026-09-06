@@ -62,10 +62,14 @@ def test_no_feasible_checkpoint_minimizes_worst_shortfall():
 
 
 def test_fallback_uses_mean_shortfall_then_irrigation():
+    # Both candidates have worst shortfall 0.01.  Candidate a has only one
+    # violated eta, while b has two; mean shortfall therefore prefers a even
+    # though b uses less water.
     a = candidate("a", 100, (0.89, 0.95, 0.98), (300, 300, 300))
-    b = candidate("b", 200, (0.90, 0.94, 0.98), (200, 200, 200))
+    b = candidate("b", 200, (0.90, 0.94, 0.975), (200, 200, 200))
     assert select_checkpoint([a, b]).selected_checkpoint_id == "a"
 
+    # Once shortfall statistics are identical, lower irrigation wins.
     c = candidate("c", 300, (0.89, 0.95, 0.98), (280, 280, 280))
     assert select_checkpoint([a, c]).selected_checkpoint_id == "c"
 
