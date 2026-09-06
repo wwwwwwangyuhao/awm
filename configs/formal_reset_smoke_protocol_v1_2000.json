@@ -29,6 +29,8 @@
   "weather_filename": "XJHX0001.WTH",
   "soil_relative_path": "data/soil/SOIL.SOL",
   "plant_yrdoy": "00119",
+  "nonpolicy_irrigation_mm": 45.0,
+  "ircm_tolerance_mm": 0.1,
   "str_fields": [
     "CR",
     "MODEL",
