@@ -6,7 +6,7 @@ This document freezes the yield-protection risk semantics used by the first AWM 
 
 Risk Contract v1 is frozen **after** the agricultural-baseline development sweep and **before** any PPO or RCWA-RL training. No 2023-2025 Huaxing station final-test outcome has been used to choose the contract.
 
-Changing the reference yield, lower-tail probability, protection levels, weather weighting or empirical LCVaR estimator after learned-policy training begins requires a new risk-contract version.
+Changing the reference yield, lower-tail probability, protection levels, weather weighting, eta grouping or empirical LCVaR estimator after learned-policy training begins requires a new risk-contract version.
 
 ## 2. Same-weather yield reference
 
@@ -34,7 +34,7 @@ For a policy `pi` under weather year `w`, define
 R_\pi(w)=\frac{Y_\pi(w)}{Y_{\mathrm{ref}}(w)}.
 \]
 
-`R_pi` is **not clipped at 1**. If a policy produces more yield than the frozen W100 reference in a particular year, `R_pi(w)>1` is retained. Clipping would erase a real difference in outcomes and bias the lower-tail calculation upward or downward depending on the sample.
+`R_pi` is **not clipped at 1**. If a policy produces more yield than the frozen W100 reference in a particular year, `R_pi(w)>1` is retained. Clipping would erase a real difference in outcomes and bias the lower-tail calculation.
 
 The same-year normalization prevents absolute high-yield and low-yield weather years from dominating the risk metric merely because their DSSAT yield scales differ.
 
@@ -108,7 +108,7 @@ For protocol v1:
 
 The contract makes an empirical historical-weather risk statement. It does not silently convert these finite weather samples into a population confidence interval.
 
-## 7. Registered protection levels
+## 7. Registered protection levels and conditional grouping
 
 The conditional policy receives the requested protection target as the existing observation feature `yield_target_fraction`.
 
@@ -124,20 +124,22 @@ Interpretation:
 - `eta=0.95`: strict yield protection;
 - `eta=0.98`: near-full-water yield protection.
 
-The target is constant within an episode. During conditional-policy training, the three registered targets must receive equal sampling weight. Every target is reported separately; no favorable eta may be selected after seeing learned-policy results.
+The target is constant within an episode. During conditional-policy training, the three registered targets receive equal sampling weight. More strongly, training must balance the Cartesian product of 18 training weather years and 3 eta levels, giving **54 weather-target cells**. Validation evaluates all 5 years separately at each eta, giving **15 validation cells**.
+
+The risk distribution is conditioned on eta: episodes generated under different requested protection levels must **never be pooled into one LCVaR estimate**. For each registered eta, the algorithm constructs its own equally weighted weather-year retention sample and evaluates the constraint separately. Every target is reported separately; no favorable eta may be selected after seeing learned-policy results.
 
 The formal constraint at requested level `eta` is
 
 \[
 \boxed{
-\mathrm{LCVaR}_{0.20}(R_\pi)\ge\eta
+\mathrm{LCVaR}_{0.20}(R_\pi\mid\eta)\ge\eta
 }.
 \]
 
 The risk margin is
 
 \[
-m_\pi(\eta)=\mathrm{LCVaR}_{0.20}(R_\pi)-\eta.
+m_\pi(\eta)=\mathrm{LCVaR}_{0.20}(R_\pi\mid\eta)-\eta.
 \]
 
 A policy is feasible when `m_pi(eta)>=0`. Protocol v1 introduces no scientific feasibility slack. Machine epsilon used for floating-point comparisons is not a statistical tolerance.
@@ -165,10 +167,10 @@ The table is descriptive protocol-design evidence, not a claim that a baseline s
 For every requested eta, the optimization objective remains
 
 \[
-\min_\pi\;\mathbb{E}[I_{\mathrm{season,total}}]
+\min_\pi\;\mathbb{E}[I_{\mathrm{season,total}}\mid\eta]
 \]
 
-subject to the risk constraint above and all hard event/budget constraints.
+subject to the eta-conditioned risk constraint above and all hard event/budget constraints.
 
 Because every method receives the same fixed 45-mm preplant event,
 
