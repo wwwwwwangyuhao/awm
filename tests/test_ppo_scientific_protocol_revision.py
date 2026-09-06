@@ -54,6 +54,8 @@ def test_recovery_and_candidate_checkpoint_namespaces_are_separate():
         assert recovery10 != candidate10
         assert recovery10.is_file()
         assert candidate10.is_file()
+        checkpoint_payload = trainer._checkpoint_payload()
+        assert checkpoint_payload["run_manifest"] == trainer.run_manifest
     finally:
         shutil.rmtree(output, ignore_errors=True)
 
@@ -73,3 +75,44 @@ def test_interaction_and_candidate_budgets_are_exact():
     assert training["recovery_checkpoint_interval_updates"] == 1
     assert training["candidate_checkpoint_interval_updates"] == 10
     assert training["validation_interval_updates"] == 10
+
+
+def test_run_manifest_records_required_reproducibility_fields_and_is_immutable():
+    output = ROOT / "runtime" / "pytest_ppo_run_manifest"
+    shutil.rmtree(output, ignore_errors=True)
+    trainer = PPOTrainer(
+        project_root=ROOT,
+        seed=21,
+        device="cpu",
+        output_dir=output,
+        runtime_base=ROOT / "r",
+    )
+    try:
+        manifest = json.loads(trainer.run_manifest_path.read_text(encoding="utf-8"))
+        assert manifest["manifest_id"] == "awm-ppo-run-manifest-v1"
+        assert manifest["ppo_protocol_id"] == "awm-ppo-baseline-v1"
+        assert manifest["training_seed"] == 21
+        assert len(manifest["git_commit"]) == 40
+        assert manifest["python_version"]
+        assert manifest["torch_version"]
+        assert "cuda_runtime_version" in manifest
+        assert manifest["device_type"] == "cpu"
+        assert manifest["device_name"].startswith("cpu:")
+        assert len(manifest["ppo_protocol_sha256"]) == 64
+        assert manifest["dssat_executable"] == "dscsm048"
+        assert len(manifest["dssat_executable_sha256"]) == 64
+
+        manifest["training_seed"] = 11
+        trainer.run_manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        )
+        with pytest.raises(RuntimeError, match="run manifest mismatch"):
+            PPOTrainer(
+                project_root=ROOT,
+                seed=21,
+                device="cpu",
+                output_dir=output,
+                runtime_base=ROOT / "r",
+            )
+    finally:
+        shutil.rmtree(output, ignore_errors=True)
