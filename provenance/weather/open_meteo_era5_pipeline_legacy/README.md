@@ -1,6 +1,8 @@
 # Recovered Open-Meteo / ERA5 weather pipeline
 
-This directory preserves the exact Python source recovered from the user-provided archive `wth_process.zip` on 2026-09-06. The source is archived here so the weather provenance cannot be lost again.
+This directory preserves the weather-pipeline source recovered from the user-provided archive `wth_process.zip` on 2026-09-06 so the provenance cannot be lost again.
+
+Five Python sources are stored byte-for-byte. `process_wth_reanalysis_v4.py` is retained without duplicating the nearly identical 29 KB file: the repository stores the exact v5 source plus the exact unified `v5 -> v4` patch and the original v4 hashes, which is sufficient to reconstruct and verify the original v4 bytes.
 
 ## Source archive integrity
 
@@ -19,6 +21,31 @@ db0fe8712526b4350b1c0e1fc79c7044c7be8dfa525f293d0185df625d2d9d19  process_wth_re
 58c395669f4590c1d7a2fd11d358409b57258d26f12680bb67e747065d5e2b18  compare_reanalysis_station_v3.py
 83db5b678830843d9793ad9b4ccc83aac0ec5e246660a8068d0823ddf582ba97  test_reanalysis_weather_pipeline_v2_scope_names.py
 1d961586f17abbda9a5ff925b968df242ef7eab2a41530533cc671f67ac9c28a  weather_year_scheduler_reanalysis_eval_v7_scope_names.py
+```
+
+Original Git blob SHA-1 values:
+
+```text
+2b1fdfced01b4e127ac57f27fb04c053bcc14b74  crawl_weather_reanalysis_v3.py
+ba2e5ea3f2138ed1de9a4b9f89625ae2c45c45fb  process_wth_reanalysis_v4.py
+40091e2ca6bce35557599d70fbd06e184e14c8e1  process_wth_reanalysis_v5_scope_names.py
+5b4474043373ae6d3bbd1bc40571084a0411e0bd  compare_reanalysis_station_v3.py
+786f9a754f307fb9aa551d41726879dc11fa1205  test_reanalysis_weather_pipeline_v2_scope_names.py
+424b8f1a26bf44ab2ae134abdf0a9e1bc0f3253d  weather_year_scheduler_reanalysis_eval_v7_scope_names.py
+```
+
+To reconstruct v4 from the archived v5 file:
+
+```bash
+cp process_wth_reanalysis_v5_scope_names.py process_wth_reanalysis_v4.py
+patch process_wth_reanalysis_v4.py < process_wth_reanalysis_v4.from_v5.patch
+sha256sum process_wth_reanalysis_v4.py
+```
+
+The resulting SHA256 must be:
+
+```text
+db0fe8712526b4350b1c0e1fc79c7044c7be8dfa525f293d0185df625d2d9d19
 ```
 
 `__pycache__/` and `.pyc` files from the ZIP are deliberately excluded because they are generated artifacts, not source provenance.
