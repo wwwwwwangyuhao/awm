@@ -1,0 +1,38 @@
+name: real-dssat-smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/one-event-irrigation-smoke-v1
+  pull_request:
+    paths:
+      - 'dssat_workspace_template/**'
+      - 'run/real_smoke/**'
+      - 'configs/engineering_*smoke*.json'
+      - 'src/awm/dssat/**'
+      - 'src/awm/envs/**'
+      - 'src/awm/baselines/**'
+
+jobs:
+  reset-and-one-event:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: ${{ github.workspace }}/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Make custom DSSAT executable runnable
+        run: chmod +x dssat_workspace_template/dscsm048
+      - name: Real zero-event reset smoke
+        run: |
+          python -m awm.dssat.smoke \
+            --config configs/engineering_reset_smoke_v3_2000.json
+      - name: Real one-event irrigation smoke
+        run: |
+          python -m awm.baselines.one_event_smoke \
+            --config configs/engineering_one_event_smoke_v3_2000.json \
+            --audit-output /tmp/awm_one_event.audit.json
