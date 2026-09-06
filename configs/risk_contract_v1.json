@@ -1,0 +1,80 @@
+{
+  "risk_contract_id": "awm-risk-contract-v1",
+  "status": "locked_before_learned_policy_training_and_before_station_final_test",
+  "agricultural_protocol_id": "awm-agricultural-v1",
+  "baseline_protocol_id": "awm-agricultural-baselines-v1",
+  "objective": {
+    "primary": "minimize expected total seasonal irrigation while satisfying the requested yield-protection constraint",
+    "total_irrigation_definition": "45 mm fixed preplant irrigation + executed postplant policy irrigation",
+    "optimization_equivalence_note": "The fixed 45-mm preplant event is common to every policy, so minimizing total seasonal irrigation is equivalent to minimizing controllable postplant irrigation."
+  },
+  "yield_retention": {
+    "symbol": "R_pi(w)",
+    "definition": "Y_pi(w) / Y_ref(w)",
+    "clip_at_one": false,
+    "reason_not_clipped": "A policy is allowed to exceed the frozen full-water reference yield in a weather year; clipping would discard real improvement.",
+    "reference": {
+      "symbol": "Y_ref(w)",
+      "method": "conventional",
+      "water_treatment": "W100",
+      "definition": "Yield of the frozen quota-normalized Huaxing conventional W100 schedule under the same weather year and identical non-water management.",
+      "total_irrigation_mm": 540.0,
+      "fixed_preplant_irrigation_mm": 45.0,
+      "postplant_irrigation_mm": 495.0,
+      "actor_observation_exposed": false,
+      "development_reference_table": "configs/yield_reference_v1_development.json"
+    }
+  },
+  "weather_measure": {
+    "unit": "weather_year",
+    "weighting": "uniform_over_years_within_each_split",
+    "training_years": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017],
+    "validation_years": [2018, 2019, 2020, 2021, 2022],
+    "locked_final_test_station_years": [2023, 2024, 2025]
+  },
+  "risk_measure": {
+    "name": "empirical_lower_CVaR",
+    "symbol": "LCVaR_alpha",
+    "alpha": 0.2,
+    "alpha_semantics": "lower-tail probability mass; alpha=0.20 means the worst 20 percent of equally weighted weather-year mass, not an 80 or 95 percent confidence level",
+    "population_definition": "LCVaR_alpha(R) = (1/alpha) * integral_0^alpha Q_R(u) du",
+    "optimization_form": "LCVaR_alpha(R) = sup_tau [tau - (1/alpha) E[(tau - R)_+]]",
+    "finite_sample_estimator": "Sort n retentions ascending. Let m=alpha*n, k=floor(m), f=m-k. Average the worst k observations plus fractional weight f on the next observation, divided by m.",
+    "statistical_claim": "The formal constraint is defined on the empirical equally weighted weather-year distribution; no population confidence interval is implied by the contract."
+  },
+  "protection_targets": {
+    "symbol": "eta",
+    "eta_levels": [0.9, 0.95, 0.98],
+    "labels": {
+      "0.90": "standard_protection",
+      "0.95": "strict_protection",
+      "0.98": "near_full_water_protection"
+    },
+    "constraint": "LCVaR_0.20(R_pi) >= eta",
+    "held_constant_within_episode": true,
+    "actor_observation_feature": "yield_target_fraction",
+    "training_target_weighting": "uniform_discrete_over_registered_eta_levels",
+    "primary_reporting": "report every registered eta level separately; do not select a favorable eta after training"
+  },
+  "split_governance": {
+    "training": "Risk optimization and gradient updates may use only 2000-2017 ERA5 years.",
+    "validation": "2018-2022 ERA5 years may be used for checkpoint/hyperparameter selection under a preregistered learned-method selection rule, but never for gradient updates.",
+    "final_test": "2023-2025 Huaxing station outcomes and station-derived Y_ref values remain inaccessible until the learned methods, checkpoints, hyperparameters and risk settings are frozen.",
+    "reference_rule": "Development Y_ref values may be precomputed for 2000-2022. Station Y_ref values are generated only during final evaluation after the development lock."
+  },
+  "feasibility": {
+    "risk_margin": "LCVaR_alpha(R_pi) - eta",
+    "feasible_rule": "margin >= 0",
+    "statistical_slack": 0.0,
+    "note": "Numerical floating-point tolerances in code are not scientific feasibility slack."
+  },
+  "development_freeze_provenance": {
+    "baseline_sweep_artifact": "awm-development-baseline-sweep-v1",
+    "artifact_id": 9987133710,
+    "artifact_digest": "sha256:d790703819205747c3a595583e37ad8569dd80ad5125682dd730bd1974b6e080",
+    "baseline_sweep_execution_commit": "e6c30a16008d62f172ca76bd749b0ef06fb3bb03",
+    "learned_policy_results_seen_before_freeze": false,
+    "station_final_test_results_seen_before_freeze": false
+  },
+  "change_rule": "Any change to Y_ref, alpha, eta levels, weather weighting or finite-sample LCVaR semantics after learned-policy training begins requires a new risk-contract version and cannot overwrite v1."
+}
