@@ -1,4 +1,4 @@
-"""Frozen 15-cell validation evaluation for PPO checkpoints."""
+"""Frozen 15-cell deterministic validation evaluation for PPO checkpoints."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -16,20 +16,11 @@ from .normalization import RunningObservationNormalizer
 from .scheduler import WeatherEtaCell, validation_cells
 
 
-VALIDATION_DRAW_SEEDS = {
-    2018: 1001,
-    2019: 1002,
-    2020: 1003,
-    2021: 1004,
-    2022: 1005,
-}
-
-
 @dataclass(frozen=True, slots=True)
 class PPOValidationCellResult:
     weather_year: int
     eta: float
-    policy_draw_seed: int
+    action_mode: str
     yield_kg_ha: float
     reference_yield_kg_ha: float
     yield_retention: float
@@ -40,13 +31,6 @@ class PPOValidationCellResult:
     executed_event_count: int
 
 
-def _generator_for(agent: PPOAgent, seed: int) -> torch.Generator:
-    device = agent.device if agent.device.type == "cuda" else torch.device("cpu")
-    generator = torch.Generator(device=device)
-    generator.manual_seed(int(seed))
-    return generator
-
-
 def evaluate_validation_cell(
     env,
     *,
@@ -54,13 +38,11 @@ def evaluate_validation_cell(
     agent: PPOAgent,
     normalizer: RunningObservationNormalizer,
     reference_yield_kg_ha: float,
-    draw_seed: int,
 ) -> PPOValidationCellResult:
     if int(env.calendar.calendar_year) != int(cell.weather_year):
         raise ValueError("validation environment year mismatch")
     if abs(float(env.yield_target_fraction) - float(cell.eta)) > 1e-12:
         raise ValueError("validation environment eta mismatch")
-    generator = _generator_for(agent, draw_seed)
     observation, _ = env.reset()
     sampled_events = 0
     executed_events = 0
@@ -71,7 +53,7 @@ def evaluate_validation_cell(
         normalized = normalizer.normalize(raw)
         state = torch.from_numpy(normalized).unsqueeze(0).to(agent.device)
         with torch.no_grad():
-            action = agent.actor.sample(state, generator=generator)
+            action, _ = agent.deterministic_action(state)
         irrigate = bool(action.irrigate.item())
         sampled_events += int(irrigate)
         step = env.step(
@@ -93,7 +75,7 @@ def evaluate_validation_cell(
     return PPOValidationCellResult(
         weather_year=int(cell.weather_year),
         eta=float(cell.eta),
-        policy_draw_seed=int(draw_seed),
+        action_mode="deterministic",
         yield_kg_ha=y,
         reference_yield_kg_ha=float(reference_yield_kg_ha),
         yield_retention=retention,
@@ -140,7 +122,6 @@ def evaluate_checkpoint(
                         agent=agent,
                         normalizer=normalizer,
                         reference_yield_kg_ha=float(reference_yield_by_year[cell.weather_year]),
-                        draw_seed=VALIDATION_DRAW_SEEDS[cell.weather_year],
                     )
                 )
             finally:
@@ -170,8 +151,6 @@ def evaluate_checkpoint(
                 minimum_retention=min(retentions),
             )
         )
-        # ``build_candidate_from_report`` validates the serialized report contract,
-        # where JSON arrays must be represented as Python lists before encoding.
         metric["validation_years"] = list(metric["validation_years"])
         eta_metrics.append(metric)
 
@@ -181,20 +160,17 @@ def evaluate_checkpoint(
         "training_step": int(training_step),
         "eta_metrics": eta_metrics,
         "cell_count": len(cell_results),
-        "validation_action_mode": "stochastic_fixed_seed",
-        "validation_draw_seeds_by_year": dict(VALIDATION_DRAW_SEEDS),
+        "validation_action_mode": "deterministic",
         "cell_results": [asdict(item) for item in cell_results],
         "normalizer_updated_during_validation": False,
         "final_test_station_results_present": False,
     }
-    # Reuse the frozen common selector parser as a hard contract validator.
     build_candidate_from_report(report)
     return report
 
 
 __all__ = [
     "PPOValidationCellResult",
-    "VALIDATION_DRAW_SEEDS",
     "evaluate_checkpoint",
     "evaluate_validation_cell",
 ]
