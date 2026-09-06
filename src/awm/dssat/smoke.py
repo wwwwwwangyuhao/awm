@@ -43,6 +43,20 @@ def _summary_float(summary: dict[str, object], key: str) -> float | None:
         raise TypeError(f"Summary.OUT field {key} is not numeric: {value!r}") from None
 
 
+def _agronomic_review_required(
+    *,
+    formal_protocol_locked: bool,
+    nonpolicy_irrigation_detected: bool,
+) -> bool:
+    """Return whether the smoke result still requires agronomic review.
+
+    A clean zero-policy irrigation accounting result is only one gate. An
+    engineering candidate remains review-required until the agronomic protocol
+    itself is explicitly locked.
+    """
+    return (not bool(formal_protocol_locked)) or bool(nonpolicy_irrigation_detected)
+
+
 def run_smoke(
     config_path: str,
     *,
@@ -114,6 +128,11 @@ def run_smoke(
         assert hwam is not None
         assert ircm is not None
         nonpolicy_irrigation_detected = abs(ircm) > 1e-9
+        formal_protocol_locked = bool(config.get("formal_protocol_locked", False))
+        agronomic_review_required = _agronomic_review_required(
+            formal_protocol_locked=formal_protocol_locked,
+            nonpolicy_irrigation_detected=nonpolicy_irrigation_detected,
+        )
 
         return {
             "status": "passed",
@@ -138,7 +157,9 @@ def run_smoke(
             "policy_irrigation_event_count": 0,
             "policy_irrigation_mm": 0.0,
             "nonpolicy_irrigation_detected": nonpolicy_irrigation_detected,
-            "agronomic_review_required": nonpolicy_irrigation_detected,
+            "nonpolicy_irrigation_review_required": nonpolicy_irrigation_detected,
+            "formal_protocol_locked": formal_protocol_locked,
+            "agronomic_review_required": agronomic_review_required,
             "output_reader_metrics": reader.metrics,
         }
 
