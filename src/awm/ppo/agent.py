@@ -1,7 +1,7 @@
 """Strictly on-policy PPO update core for the AWM irrigation baseline."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import math
 from statistics import mean
 
@@ -222,7 +222,7 @@ class PPOAgent:
             "actor_state_dict": self.actor.state_dict(),
             "critic_state_dict": self.critic.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
-            "hyperparameters": self.hparams.__dict__,
+            "hyperparameters": asdict(self.hparams),
         }
 
 
