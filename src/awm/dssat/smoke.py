@@ -14,6 +14,35 @@ from .smoke_runtime import prepare_hashed_smoke_worker, resolve_project_root
 from .workspace import validate_dssatpro_record_width
 
 
+def _required_output_sizes(paths: tuple[Path, ...]) -> dict[str, int]:
+    sizes: dict[str, int] = {}
+    missing_or_empty: list[str] = []
+    for path in paths:
+        if not path.is_file():
+            missing_or_empty.append(f"{path.name}:missing")
+            continue
+        size = int(path.stat().st_size)
+        sizes[path.name] = size
+        if size <= 0:
+            missing_or_empty.append(f"{path.name}:empty")
+    if missing_or_empty:
+        raise RuntimeError(
+            "real DSSAT smoke requires all canonical daily OUT files to be "
+            "present and non-empty: " + ", ".join(missing_or_empty)
+        )
+    return sizes
+
+
+def _summary_float(summary: dict[str, object], key: str) -> float | None:
+    if key not in summary:
+        return None
+    value = summary[key]
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise TypeError(f"Summary.OUT field {key} is not numeric: {value!r}") from None
+
+
 def run_smoke(
     config_path: str,
     *,
@@ -71,23 +100,45 @@ def run_smoke(
             paths=paths,
         )
         backend.reset_episode()
+
+        daily_output_sizes = _required_output_sizes(worker.daily_out_files)
         planting_state = backend.daily_state(config["plant_yrdoy"])
         summary = backend.season_summary()
         if not planting_state:
             raise RuntimeError("real DSSAT smoke parsed an empty planting-day state")
         if "HWAM" not in summary or "IRCM" not in summary:
             raise KeyError("real DSSAT smoke requires Summary.OUT fields HWAM and IRCM")
+
+        hwam = _summary_float(summary, "HWAM")
+        ircm = _summary_float(summary, "IRCM")
+        assert hwam is not None
+        assert ircm is not None
+        nonpolicy_irrigation_detected = abs(ircm) > 1e-9
+
         return {
             "status": "passed",
             "runtime_family": "awm",
             "runtime_id": worker.runtime_id,
             "runtime_root": str(worker.runtime_root),
             "workspace": str(worker.workspace),
+            "rendered_cox": str(worker.rendered_cox),
+            "weather_file": str(worker.weather_file),
+            "soil_file": str(worker.soil_file),
             "workspace_preflight": workspace_report,
             "plant_yrdoy": config["plant_yrdoy"],
             "planting_state_field_count": len(planting_state),
+            "daily_output_file_count": len(daily_output_sizes),
+            "daily_output_sizes_bytes": daily_output_sizes,
             "summary_has_hwam": True,
             "summary_has_ircm": True,
+            "HWAM_kg_ha": hwam,
+            "IRCM_mm": ircm,
+            "NICM": _summary_float(summary, "NICM"),
+            "ETCM": _summary_float(summary, "ETCM"),
+            "policy_irrigation_event_count": 0,
+            "policy_irrigation_mm": 0.0,
+            "nonpolicy_irrigation_detected": nonpolicy_irrigation_detected,
+            "agronomic_review_required": nonpolicy_irrigation_detected,
             "output_reader_metrics": reader.metrics,
         }
 
