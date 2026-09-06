@@ -35,7 +35,6 @@ def test_hierarchical_actor_exact_noop_and_logprob_recompute():
     assert torch.all(action.amount_fraction[~action.irrigate] == 0.0)
     assert torch.all(action.amount_fraction[action.irrigate] > 0.0)
     assert torch.all(action.amount_fraction[action.irrigate] < 1.0)
-    # Neutral gate initialization is exactly p=0.5 for every state.
     _, logits = actor.components(states)
     assert torch.allclose(torch.sigmoid(logits), torch.full_like(logits, 0.5))
 
@@ -72,17 +71,15 @@ def test_balanced_scheduler_is_exact_and_never_uses_final_test_years():
     assert not ({2023, 2024, 2025} & {cell.weather_year for cell in validation})
 
 
-def test_ppo_reward_is_feasibility_first_without_tunable_penalty():
+def test_ppo_reward_ranks_feasible_trajectory_above_infeasible_trajectory():
     refs = {2000: 1000.0}
     feasible = PPOEpisodeReward(weather_year=2000, eta=0.95, reference_yield_by_year=refs)
-    # Full policy quota costs exactly -1.0, but target is satisfied.
     assert feasible.step_reward(495.0) == pytest.approx(-1.0)
     feasible_result = feasible.finish(yield_kg_ha=950.0, irrigation_accounting_passed=True)
     assert feasible_result.episode_return == pytest.approx(-1.0)
     assert feasible_result.target_feasible is True
 
     infeasible = PPOEpisodeReward(weather_year=2000, eta=0.95, reference_yield_by_year=refs)
-    # Even with zero water cost, any strict shortfall is below -1.
     infeasible_result = infeasible.finish(yield_kg_ha=949.0, irrigation_accounting_passed=True)
     assert infeasible_result.episode_return < -1.0
     assert infeasible_result.target_feasible is False
@@ -151,7 +148,13 @@ def test_ppo_update_is_finite_strictly_on_policy_and_versioned():
         update_epochs=2,
         minibatch_size=4,
     )
+    assert h.gae_lambda == pytest.approx(1.0)
+    assert h.adam_beta1 == pytest.approx(0.9)
+    assert h.adam_beta2 == pytest.approx(0.999)
+    assert h.adam_eps == pytest.approx(1e-8)
     agent = PPOAgent(hyperparameters=h, seed=21, device="cpu")
+    assert agent.optimizer.defaults["betas"] == pytest.approx((0.9, 0.999))
+    assert agent.optimizer.defaults["eps"] == pytest.approx(1e-8)
     batch = _synthetic_batch(agent, 8)
     stats = agent.update(batch)
     assert stats.sample_count == 8
@@ -172,6 +175,7 @@ def test_ppo_update_is_finite_strictly_on_policy_and_versioned():
     payload = agent.checkpoint_payload()
     assert payload["protocol_id"] == "awm-ppo-baseline-v1"
     assert payload["hyperparameters"]["clip_epsilon"] == pytest.approx(0.2)
+    assert payload["hyperparameters"]["gae_lambda"] == pytest.approx(1.0)
 
 
 def test_running_observation_normalizer_round_trip_and_freeze_usage():
@@ -199,5 +203,21 @@ def test_machine_readable_ppo_protocol_matches_implementation_constants():
     assert config["optimizer"]["minibatch_size"] == 450
     assert 6750 % 450 == 0
     assert config["optimizer"]["gamma"] == pytest.approx(1.0)
+    assert config["optimizer"]["gae_lambda"] == pytest.approx(1.0)
+    assert config["optimizer"]["adam_beta1"] == pytest.approx(0.9)
+    assert config["optimizer"]["adam_beta2"] == pytest.approx(0.999)
+    assert config["optimizer"]["adam_eps"] == pytest.approx(1e-8)
     assert config["training"]["seeds"] == [11, 21, 31, 41, 51]
+    assert config["training"]["recovery_checkpoint_interval_updates"] == 1
+    assert config["training"]["candidate_checkpoint_interval_updates"] == 10
+    assert config["training"]["validation_interval_updates"] == 10
+    assert config["training"]["validation_action_mode"] == "deterministic"
+    assert config["training"]["final_test_action_mode"] == "deterministic"
+    assert config["training"]["candidate_checkpoint_count_per_seed"] == 20
+    assert config["interaction_budget"]["training_episodes_per_seed"] == 10800
+    assert config["interaction_budget"]["decision_transitions_per_seed"] == 1350000
+    assert config["interaction_budget"]["training_episodes_all_five_seeds"] == 54000
+    assert config["interaction_budget"]["decision_transitions_all_five_seeds"] == 6750000
+    assert config["validation"]["action_mode"] == "deterministic"
+    assert config["final_test"]["action_mode"] == "deterministic"
     assert config["reference_provenance"]["read_only_repository"] == "wwwwwwangyuhao/lrmb"
