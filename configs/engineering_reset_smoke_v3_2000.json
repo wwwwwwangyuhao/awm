@@ -1,0 +1,48 @@
+{
+  "status": "engineering_smoke_only_not_formal_protocol",
+  "runtime": {
+    "policy_idx": 0,
+    "env_idx": 0,
+    "replace_worker": true
+  },
+  "cox_template": "run/real_smoke/v3_2000_engineering.COX.in",
+  "rendered_cox_name": "XJHX0001.COX",
+  "summary_out_name": "Summary.OUT",
+  "daily_out_names": [
+    "PlantGro.OUT",
+    "SoilWat.OUT",
+    "Weather.OUT",
+    "ET.OUT",
+    "GHG.OUT",
+    "MgmtOps.OUT",
+    "Mulch.OUT",
+    "N2O.OUT",
+    "PlantC.OUT",
+    "PlantN.OUT",
+    "SoilTemp.OUT",
+    "SoilWater.OUT",
+    "SoilNi.OUT"
+  ],
+  "weather_source": "era5",
+  "weather_filename": "XJHX0001.WTH",
+  "soil_relative_path": "data/soil/SOIL.SOL",
+  "plant_yrdoy": "00119",
+  "str_fields": [
+    "CR",
+    "MODEL",
+    "EXNAME",
+    "TNAM",
+    "FNAM",
+    "NSTA",
+    "SOIL_ID"
+  ],
+  "date_fields": [
+    "SDAT",
+    "PDAT",
+    "EDAT",
+    "ADAT",
+    "MDAT",
+    "HDAT"
+  ],
+  "timeout_seconds": 1800
+}
