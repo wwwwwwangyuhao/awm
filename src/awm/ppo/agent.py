@@ -20,18 +20,26 @@ class PPOHyperparameters:
     critic_hidden_dims: tuple[int, int] = (256, 128)
     learning_rate: float = 1e-4
     gamma: float = 1.0
-    gae_lambda: float = 0.95
+    gae_lambda: float = 1.0
     clip_epsilon: float = 0.2
     update_epochs: int = 10
     minibatch_size: int = 450
     value_loss_coefficient: float = 0.5
     entropy_coefficient: float = 0.0
     max_grad_norm: float = 0.5
+    adam_beta1: float = 0.9
+    adam_beta2: float = 0.999
+    adam_eps: float = 1e-8
 
     def __post_init__(self) -> None:
         if self.state_dim <= 0:
             raise ValueError("state_dim must be positive")
-        for name in ("learning_rate", "clip_epsilon", "max_grad_norm"):
+        for name in (
+            "learning_rate",
+            "clip_epsilon",
+            "max_grad_norm",
+            "adam_eps",
+        ):
             if not math.isfinite(float(getattr(self, name))) or float(getattr(self, name)) <= 0:
                 raise ValueError(f"{name} must be finite and > 0")
         if self.update_epochs <= 0 or self.minibatch_size <= 0:
@@ -40,6 +48,8 @@ class PPOHyperparameters:
             raise ValueError("gamma and gae_lambda must lie in [0,1]")
         if self.value_loss_coefficient < 0.0 or self.entropy_coefficient < 0.0:
             raise ValueError("loss coefficients must be >= 0")
+        if not 0.0 <= self.adam_beta1 < 1.0 or not 0.0 <= self.adam_beta2 < 1.0:
+            raise ValueError("Adam beta parameters must lie in [0,1)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +98,8 @@ class PPOAgent:
         self.optimizer = torch.optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()),
             lr=self.hparams.learning_rate,
+            betas=(self.hparams.adam_beta1, self.hparams.adam_beta2),
+            eps=self.hparams.adam_eps,
         )
         self.policy_version = 0
         self.update_index = 0
