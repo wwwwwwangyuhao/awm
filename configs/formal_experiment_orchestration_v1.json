@@ -1,0 +1,32 @@
+{
+  "orchestration_id": "awm-formal-experiment-orchestration-v1",
+  "status": "locked_before_learned_method_training_completion",
+  "methods": [
+    {"method_id": "ppo", "protocol_id": "awm-ppo-baseline-v1"},
+    {"method_id": "ppo_lagrangian", "protocol_id": "awm-ppo-lagrangian-baseline-v1"},
+    {"method_id": "rcwa_rl", "protocol_id": "awm-rcwa-rl-v1"}
+  ],
+  "seeds": [11, 21, 31, 41, 51],
+  "training": {
+    "max_updates_per_seed": 200,
+    "episodes_per_update": 54,
+    "transitions_per_update": 6750,
+    "training_episodes_per_seed": 10800,
+    "training_transitions_per_seed": 1350000
+  },
+  "selection": {
+    "candidate_updates": [10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,190,200],
+    "required_validation_reports_per_seed": 20,
+    "required_candidate_checkpoints_per_seed": 20,
+    "evaluation_contract_id": "awm-learned-method-evaluation-v1",
+    "selector": "frozen lexicographic checkpoint_selection.py",
+    "seed_is_not_selection_axis": true
+  },
+  "development_export": {
+    "registered_eta_levels": [0.90,0.95,0.98],
+    "validation_years": [2018,2019,2020,2021,2022],
+    "locked_final_test_years": [2023,2024,2025],
+    "final_test_access_allowed": false
+  },
+  "change_rule": "Any change to completion requirements, candidate multiplicity, checkpoint selector, or development export schema after training completion requires a new orchestration version."
+}
