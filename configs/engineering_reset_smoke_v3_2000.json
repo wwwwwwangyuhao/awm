@@ -1,5 +1,6 @@
 {
   "status": "engineering_smoke_only_not_formal_protocol",
+  "formal_protocol_locked": false,
   "runtime": {
     "policy_idx": 0,
     "env_idx": 0,
