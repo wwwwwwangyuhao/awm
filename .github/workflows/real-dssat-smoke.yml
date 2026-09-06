@@ -6,6 +6,7 @@ on:
     branches:
       - feat/one-event-irrigation-smoke-v1
       - feat/agricultural-protocol-v1
+      - feat/formal-agricultural-baselines-v1
   pull_request:
     paths:
       - 'dssat_workspace_template/**'
@@ -14,6 +15,7 @@ on:
       - 'configs/engineering_*smoke*.json'
       - 'configs/formal_*smoke*.json'
       - 'configs/agricultural_protocol_v1.json'
+      - 'configs/agricultural_baselines_v1.json'
       - 'src/awm/dssat/**'
       - 'src/awm/envs/**'
       - 'src/awm/baselines/**'
@@ -63,3 +65,18 @@ jobs:
         run: |
           python -m awm.dssat.smoke \
             --config configs/formal_reset_smoke_protocol_v1_2000.json
+      - name: Real formal W100 conventional baseline smoke
+        run: |
+          python -m awm.baselines.smoke \
+            --config configs/formal_baseline_conventional_w100_2000.json \
+            --audit-output /tmp/awm_conventional_w100_2000.audit.json
+      - name: Real formal W100 potential-ET baseline smoke
+        run: |
+          python -m awm.baselines.smoke \
+            --config configs/formal_baseline_et_w100_2000.json \
+            --audit-output /tmp/awm_et_w100_2000.audit.json
+      - name: Real formal W100 REW baseline smoke
+        run: |
+          python -m awm.baselines.smoke \
+            --config configs/formal_baseline_rew_w100_2000.json \
+            --audit-output /tmp/awm_rew_w100_2000.audit.json
