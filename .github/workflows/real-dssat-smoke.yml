@@ -44,12 +44,18 @@ jobs:
         run: |
           python - <<'PY'
           from awm.dssat.cox_audit import audit_cox_template
-          report = audit_cox_template('run/formal/awm_protocol_v1_2000.COX.in')
+          report = audit_cox_template(
+              'run/formal/awm_protocol_v1_2000.COX.in',
+              expected_nonpolicy_irrigation_mm=45.0,
+              irrigation_tolerance_mm=0.1,
+          )
           print(report)
           if report['structural_status'] != 'passed':
               raise SystemExit('formal COX structural audit failed')
           if not report['protocol_ready']:
               raise SystemExit(f"formal COX protocol audit failed: {report['review_flags']}")
+          if abs(float(report['explicit_nonpolicy_irrigation_total_mm']) - 45.0) > 0.1:
+              raise SystemExit('formal COX fixed preplant irrigation is not 45 mm')
           if abs(float(report['explicit_fertilizer_n_total_kg_ha']) - 235.0) > 1e-9:
               raise SystemExit('formal COX fixed-N total is not 235 kg/ha')
           PY
