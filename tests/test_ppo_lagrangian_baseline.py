@@ -90,14 +90,16 @@ def test_eta_specific_dual_projection_is_independent():
     assert after["0.98"] == pytest.approx(1.0)
 
 
-def test_actor_architecture_and_initialization_match_standard_ppo():
+def test_actor_and_reward_critic_initialization_match_standard_ppo():
     ppo = PPOAgent(seed=21, device="cpu")
     lag = PPOLagrangianAgent(seed=21, device="cpu")
-    ppo_state = ppo.actor.state_dict()
-    lag_state = lag.actor.state_dict()
-    assert ppo_state.keys() == lag_state.keys()
-    for key in ppo_state:
-        assert torch.equal(ppo_state[key], lag_state[key]), key
+    for ppo_module, lag_module in ((ppo.actor, lag.actor), (ppo.critic, lag.reward_critic)):
+        ppo_state = ppo_module.state_dict()
+        lag_state = lag_module.state_dict()
+        assert ppo_state.keys() == lag_state.keys()
+        for key in ppo_state:
+            assert torch.equal(ppo_state[key], lag_state[key]), key
+    assert lag.cost_critic is not lag.reward_critic
 
 
 def test_checkpoint_roundtrip_preserves_duals_and_rng():
