@@ -13,6 +13,7 @@ import torch
 from .agent import PPOAgent, PPOHyperparameters
 from .evaluation import evaluate_checkpoint
 from .normalization import NormalizerState, RunningObservationNormalizer
+from .provenance import build_run_manifest, ensure_run_manifest
 from .real_env import PPORealEnvFactory
 from .rollout import collect_balanced_training_rollout
 
@@ -84,6 +85,16 @@ class PPOTrainer:
         except ValueError as exc:
             raise ValueError("PPO output_dir must remain inside the AWM project root") from exc
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.run_manifest = build_run_manifest(
+            project_root=self.root,
+            protocol=self.protocol,
+            seed=self.seed,
+            device=self.agent.device,
+        )
+        self.run_manifest_path = ensure_run_manifest(
+            self.output_dir / "run_manifest.json",
+            self.run_manifest,
+        )
         self.env_factory = PPORealEnvFactory(
             project_root=self.root,
             work_dir=self.output_dir / "env",
@@ -158,6 +169,7 @@ class PPOTrainer:
         state = self.normalizer.state()
         return {
             "trainer_protocol_id": "awm-ppo-trainer-v1",
+            "run_manifest": self.run_manifest,
             "agent": self.agent.checkpoint_payload(),
             "normalizer": asdict(state),
             "transition_count": self.transition_count,
@@ -193,6 +205,8 @@ class PPOTrainer:
         payload = torch.load(Path(path), map_location=self.agent.device, weights_only=False)
         if payload.get("trainer_protocol_id") != "awm-ppo-trainer-v1":
             raise ValueError("trainer checkpoint protocol mismatch")
+        if payload.get("run_manifest") != self.run_manifest:
+            raise ValueError("checkpoint run manifest does not match current formal run provenance")
         self.agent.load_checkpoint_payload(payload["agent"])
         raw = payload["normalizer"]
         self.normalizer.load_state(
@@ -250,6 +264,7 @@ class PPOTrainer:
             "seed": self.seed,
             "update_index": self.agent.update_index,
             "transition_count": self.transition_count,
+            "run_manifest": str(self.run_manifest_path),
             "last_recovery_checkpoint": last_recovery_checkpoint,
             "candidate_checkpoints": candidate_checkpoints,
             "validation_reports": validation_reports,
