@@ -1,0 +1,46 @@
+{
+  "reference_id": "awm-yield-reference-v1-development",
+  "risk_contract_id": "awm-risk-contract-v1",
+  "status": "development_only_no_station_final_test",
+  "definition": "Y_ref(w) is the HWAM yield from the frozen quota-normalized Huaxing conventional W100 schedule under weather year w and identical non-water management.",
+  "reference_method": "conventional",
+  "reference_water_treatment": "W100",
+  "weather_source": "era5",
+  "source_sweep": {
+    "artifact": "awm-development-baseline-sweep-v1",
+    "artifact_id": 9987133710,
+    "artifact_digest": "sha256:d790703819205747c3a595583e37ad8569dd80ad5125682dd730bd1974b6e080",
+    "execution_commit": "e6c30a16008d62f172ca76bd749b0ef06fb3bb03",
+    "formal_source_cox_sha256": "7984ea2ae684e8eb8e97919c5821f01fc35da3ff917ca7e9e267e52b8b30c274"
+  },
+  "training_years": {
+    "2000": 6831.0,
+    "2001": 6722.0,
+    "2002": 6149.0,
+    "2003": 6306.0,
+    "2004": 6310.0,
+    "2005": 7689.0,
+    "2006": 7485.0,
+    "2007": 7202.0,
+    "2008": 8030.0,
+    "2009": 6153.0,
+    "2010": 7330.0,
+    "2011": 7134.0,
+    "2012": 7634.0,
+    "2013": 7303.0,
+    "2014": 7060.0,
+    "2015": 7220.0,
+    "2016": 7474.0,
+    "2017": 7551.0
+  },
+  "validation_years": {
+    "2018": 7416.0,
+    "2019": 7102.0,
+    "2020": 7705.0,
+    "2021": 7562.0,
+    "2022": 8005.0
+  },
+  "locked_final_test_station_years": [2023, 2024, 2025],
+  "final_test_reference_values": null,
+  "final_test_rule": "Do not populate station Y_ref values until learned methods, checkpoints, hyperparameters and Risk Contract v1 are frozen. Generate them with the same conventional W100 reference schedule during final evaluation."
+}
