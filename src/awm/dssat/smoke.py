@@ -46,15 +46,12 @@ def _summary_float(summary: dict[str, object], key: str) -> float | None:
 def _agronomic_review_required(
     *,
     formal_protocol_locked: bool,
-    nonpolicy_irrigation_detected: bool,
+    irrigation_accounting_review_required: bool,
 ) -> bool:
-    """Return whether the smoke result still requires agronomic review.
-
-    A clean zero-policy irrigation accounting result is only one gate. An
-    engineering candidate remains review-required until the agronomic protocol
-    itself is explicitly locked.
-    """
-    return (not bool(formal_protocol_locked)) or bool(nonpolicy_irrigation_detected)
+    """Return whether the smoke result still requires agronomic review."""
+    return (not bool(formal_protocol_locked)) or bool(
+        irrigation_accounting_review_required
+    )
 
 
 def run_smoke(
@@ -127,11 +124,16 @@ def run_smoke(
         ircm = _summary_float(summary, "IRCM")
         assert hwam is not None
         assert ircm is not None
+
+        expected_nonpolicy = float(config.get("nonpolicy_irrigation_mm", 0.0))
+        tolerance = float(config.get("ircm_tolerance_mm", 1e-6))
+        accounting_error = abs(ircm - expected_nonpolicy)
         nonpolicy_irrigation_detected = abs(ircm) > 1e-9
+        irrigation_accounting_review_required = accounting_error > tolerance
         formal_protocol_locked = bool(config.get("formal_protocol_locked", False))
         agronomic_review_required = _agronomic_review_required(
             formal_protocol_locked=formal_protocol_locked,
-            nonpolicy_irrigation_detected=nonpolicy_irrigation_detected,
+            irrigation_accounting_review_required=irrigation_accounting_review_required,
         )
 
         return {
@@ -156,8 +158,10 @@ def run_smoke(
             "ETCM": _summary_float(summary, "ETCM"),
             "policy_irrigation_event_count": 0,
             "policy_irrigation_mm": 0.0,
+            "expected_nonpolicy_irrigation_mm": expected_nonpolicy,
             "nonpolicy_irrigation_detected": nonpolicy_irrigation_detected,
-            "nonpolicy_irrigation_review_required": nonpolicy_irrigation_detected,
+            "nonpolicy_irrigation_accounting_error_mm": accounting_error,
+            "nonpolicy_irrigation_review_required": irrigation_accounting_review_required,
             "formal_protocol_locked": formal_protocol_locked,
             "agronomic_review_required": agronomic_review_required,
             "output_reader_metrics": reader.metrics,
