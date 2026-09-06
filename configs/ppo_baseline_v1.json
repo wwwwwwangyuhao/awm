@@ -39,19 +39,25 @@
     "policy_latent": false
   },
   "reward": {
-    "name": "feasibility_first_scalar_surrogate",
+    "name": "trajectory_feasibility_ranked_scalar_surrogate",
     "step_reward": "- executed_policy_irrigation_mm / 495",
     "terminal_retention": "R = HWAM / Y_ref(weather_year)",
     "terminal_violation_penalty": "0 if R >= eta else -(1 + eta - R)",
     "episode_return": "- I_policy/495 - 1[R<eta]*(1 + eta - R)",
     "gamma_requirement": 1.0,
-    "reason": "With I_policy/495 in [0,1], every target-feasible episode has return in [-1,0] while every target-infeasible episode has return below -1. The surrogate therefore prioritizes per-year target feasibility before water saving without a tunable penalty coefficient.",
+    "trajectory_ranking_property": "For a single trajectory, every target-feasible episode has return in [-1,0] and every target-infeasible episode has return below -1.",
+    "distribution_level_caveat": "PPO maximizes expected scalar return, so performance across weather years can compensate in expectation. This surrogate does not impose hard distribution-level feasibility and does not guarantee the LCVaR constraint.",
     "not_claimed_as": "LCVaR optimization; PPO remains a scalar expected-return baseline and formal risk is evaluated separately using Risk Contract v1"
   },
   "optimizer": {
+    "name": "Adam",
     "learning_rate": 0.0001,
+    "adam_beta1": 0.9,
+    "adam_beta2": 0.999,
+    "adam_eps": 1e-8,
     "gamma": 1.0,
-    "gae_lambda": 0.95,
+    "gae_lambda": 1.0,
+    "gae_rationale": "The 125-day task has terminal yield protection as its main delayed signal; lambda=1 preserves undiscounted complete-episode credit assignment rather than exponentially attenuating the terminal consequence for early-season actions.",
     "clip_epsilon": 0.2,
     "update_epochs": 10,
     "minibatch_size": 450,
@@ -79,23 +85,61 @@
     "reward_scaling": false,
     "advantage_normalization": true
   },
+  "interaction_budget": {
+    "training_episodes_per_update": 54,
+    "decision_transitions_per_update": 6750,
+    "max_updates_per_seed": 200,
+    "training_episodes_per_seed": 10800,
+    "decision_transitions_per_seed": 1350000,
+    "training_episodes_all_five_seeds": 54000,
+    "decision_transitions_all_five_seeds": 6750000,
+    "fairness_rule": "Every learned comparator, including RCWA-RL and any constrained learned baseline, must receive the same maximum environment-training interaction budget per seed. Any extra DSSAT trajectory used to update learned parameters, risk estimators, dual variables or auxiliary trainable modules counts toward this budget.",
+    "validation_not_counted_as_training": true,
+    "validation_candidate_budget_rule": "Every learned comparator uses the same candidate-checkpoint cadence and the same 15-cell validation budget per candidate."
+  },
   "training": {
     "seeds": [11, 21, 31, 41, 51],
     "max_updates": 200,
-    "checkpoint_interval_updates": 10,
+    "recovery_checkpoint_interval_updates": 1,
+    "candidate_checkpoint_interval_updates": 10,
     "validation_interval_updates": 10,
-    "validation_action_mode": "stochastic",
-    "validation_policy_draw_seeds": [1001, 1002, 1003, 1004, 1005],
+    "validation_action_mode": "deterministic",
+    "final_test_action_mode": "deterministic",
+    "candidate_checkpoint_count_per_seed": 20,
+    "validation_episodes_per_candidate": 15,
+    "validation_episodes_per_seed": 300,
     "checkpoint_selection_contract": "awm-learned-method-evaluation-v1",
-    "seed_selection": "forbidden; all five seeds remain independent replicates"
+    "seed_selection": "forbidden; all five seeds remain independent replicates",
+    "recovery_checkpoint_semantics": "Recovery checkpoints exist only for exact restart and are never eligible for model selection unless the update also lies on the frozen candidate cadence.",
+    "candidate_checkpoint_semantics": "Only updates 10,20,...,200 are scientific checkpoint-selection candidates."
   },
   "validation": {
     "candidate_checkpoint_cells": 15,
     "weather_eta_cartesian_product": true,
     "state_normalizer_frozen": true,
     "gradient_updates": false,
+    "action_mode": "deterministic",
+    "policy_randomness_in_risk_measure": false,
     "formal_metrics": ["yield_retention", "LCVaR_0.20_by_eta", "total_irrigation_mm", "policy_irrigation_mm", "IRCM_accounting"],
     "selection": "one checkpoint per training seed using awm-learned-method-evaluation-v1"
   },
-  "change_rule": "Any change to PPO architecture, reward surrogate, optimizer hyperparameters, scheduler, seeds, normalization, checkpoint cadence or validation action mode after formal PPO training begins requires a new PPO protocol version."
+  "final_test": {
+    "action_mode": "deterministic",
+    "policy_randomness_in_risk_measure": false,
+    "station_years": [2023, 2024, 2025],
+    "locked_until_checkpoint_selection_complete": true
+  },
+  "reproducibility": {
+    "record_at_run_start": [
+      "git_commit",
+      "ppo_protocol_id",
+      "training_seed",
+      "python_version",
+      "torch_version",
+      "cuda_runtime_version",
+      "device_name",
+      "dssat_executable_sha256"
+    ]
+  },
+  "change_rule": "Any change to PPO architecture, reward surrogate, optimizer hyperparameters, scheduler, seeds, normalization, interaction budget, checkpoint cadence or validation/final-test action mode after formal PPO training begins requires a new PPO protocol version."
 }
