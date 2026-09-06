@@ -48,6 +48,9 @@ def hyperparameters_from_protocol(protocol: dict[str, Any]) -> PPOHyperparameter
         value_loss_coefficient=float(optimizer["value_loss_coefficient"]),
         entropy_coefficient=float(optimizer["entropy_coefficient"]),
         max_grad_norm=float(optimizer["max_grad_norm"]),
+        adam_beta1=float(optimizer["adam_beta1"]),
+        adam_beta2=float(optimizer["adam_beta2"]),
+        adam_eps=float(optimizer["adam_eps"]),
     )
 
 
@@ -89,9 +92,11 @@ class PPOTrainer:
         )
         self.metrics_path = self.output_dir / "train_updates.jsonl"
         self.validation_dir = self.output_dir / "validation"
-        self.checkpoint_dir = self.output_dir / "checkpoints"
+        self.recovery_checkpoint_dir = self.output_dir / "recovery_checkpoints"
+        self.candidate_checkpoint_dir = self.output_dir / "candidate_checkpoints"
         self.validation_dir.mkdir(parents=True, exist_ok=True)
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.recovery_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.candidate_checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def transition_count(self) -> int:
@@ -149,20 +154,39 @@ class PPOTrainer:
             handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
         return payload
 
-    def checkpoint_path(self, update_index: int | None = None) -> Path:
-        idx = self.agent.update_index if update_index is None else int(update_index)
-        return self.checkpoint_dir / f"ppo_seed{self.seed}_update{idx:04d}.pt"
-
-    def save_checkpoint(self) -> Path:
+    def _checkpoint_payload(self) -> dict[str, object]:
         state = self.normalizer.state()
-        payload = {
+        return {
             "trainer_protocol_id": "awm-ppo-trainer-v1",
             "agent": self.agent.checkpoint_payload(),
             "normalizer": asdict(state),
             "transition_count": self.transition_count,
         }
+
+    def checkpoint_path(self, update_index: int | None = None) -> Path:
+        """Backward-compatible recovery checkpoint path."""
+        idx = self.agent.update_index if update_index is None else int(update_index)
+        return self.recovery_checkpoint_dir / f"ppo_seed{self.seed}_update{idx:04d}.pt"
+
+    def candidate_checkpoint_path(self, update_index: int | None = None) -> Path:
+        idx = self.agent.update_index if update_index is None else int(update_index)
+        return self.candidate_checkpoint_dir / f"ppo_seed{self.seed}_update{idx:04d}.pt"
+
+    def save_checkpoint(self) -> Path:
+        """Save a recovery checkpoint; recovery files are never selector candidates."""
         path = self.checkpoint_path()
-        torch.save(payload, path)
+        torch.save(self._checkpoint_payload(), path)
+        return path
+
+    def save_candidate_checkpoint(self) -> Path:
+        """Save a scientific candidate checkpoint on the frozen candidate cadence."""
+        interval = int(self.protocol["training"]["candidate_checkpoint_interval_updates"])
+        if self.agent.update_index <= 0 or self.agent.update_index % interval != 0:
+            raise ValueError(
+                f"update {self.agent.update_index} is not on the candidate checkpoint cadence {interval}"
+            )
+        path = self.candidate_checkpoint_path()
+        torch.save(self._checkpoint_payload(), path)
         return path
 
     def load_checkpoint(self, path: str | Path) -> None:
@@ -205,15 +229,20 @@ class PPOTrainer:
             raise ValueError(
                 f"stop_after_update must lie in ({self.agent.update_index}, {formal_max}]"
             )
-        checkpoint_interval = int(self.protocol["training"]["checkpoint_interval_updates"])
+        recovery_interval = int(self.protocol["training"]["recovery_checkpoint_interval_updates"])
+        candidate_interval = int(self.protocol["training"]["candidate_checkpoint_interval_updates"])
         validation_interval = int(self.protocol["training"]["validation_interval_updates"])
+        if candidate_interval != validation_interval:
+            raise RuntimeError("candidate and validation cadence must match in PPO Protocol v1")
         validation_reports: list[str] = []
-        last_checkpoint: str | None = None
+        candidate_checkpoints: list[str] = []
+        last_recovery_checkpoint: str | None = None
         while self.agent.update_index < target:
             self.run_update()
-            if self.agent.update_index % checkpoint_interval == 0:
-                last_checkpoint = str(self.save_checkpoint())
-            if self.agent.update_index % validation_interval == 0:
+            if self.agent.update_index % recovery_interval == 0:
+                last_recovery_checkpoint = str(self.save_checkpoint())
+            if self.agent.update_index % candidate_interval == 0:
+                candidate_checkpoints.append(str(self.save_candidate_checkpoint()))
                 report = self.validate_current_checkpoint()
                 validation_reports.append(str(self.validation_dir / f"{report['checkpoint_id']}.json"))
         return {
@@ -221,7 +250,8 @@ class PPOTrainer:
             "seed": self.seed,
             "update_index": self.agent.update_index,
             "transition_count": self.transition_count,
-            "last_checkpoint": last_checkpoint,
+            "last_recovery_checkpoint": last_recovery_checkpoint,
+            "candidate_checkpoints": candidate_checkpoints,
             "validation_reports": validation_reports,
             "formal_max_updates": formal_max,
         }
