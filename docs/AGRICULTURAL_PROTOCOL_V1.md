@@ -74,37 +74,55 @@ Positive N applications are fixed by DOY:
 
 The P and K numeric fields from the historical rows are retained in the COX for provenance, but protocol v1 keeps `PHOSP=N` and `POTAS=N`; therefore P and K stress are not active DSSAT model dimensions in this study.
 
-## 6. Irrigation action and hard constraints
+## 6. Irrigation action, establishment water and hard constraints
 
-DSSAT irrigation management uses `IRRIG=R`: only explicit AWM-generated irrigation rows are active. Automatic irrigation is therefore disabled.
+DSSAT irrigation management uses `IRRIG=R`: only explicit fixed-management rows plus AWM-generated policy rows are active. Automatic irrigation is disabled.
 
-The local normal full-irrigation reference is 360 m3 mu^-1. Using the exact area conversion used by this study,
+### 6.1 Fixed preplant establishment irrigation
 
-`1 m3 mu^-1 = 1.5 mm`,
+The 2023, 2024 and 2025 Huaxing field COX records all contain the same preplant event: 30 m3 mu^-1 exactly three days before planting. Under the study conversion `1 m3 mu^-1 = 1.5 mm`, this is 45 mm.
 
-therefore
+Protocol v1 therefore fixes:
 
-`B_ref = 360 * 1.5 = 540 mm`.
+- preplant irrigation: 45 mm;
+- formal 2000-instance date: DOY 116, three days before planting DOY 119;
+- policy controllable: no;
+- shared by every agricultural baseline, learned policy and reference simulation;
+- included in DSSAT seasonal `IRCM` and all reported seasonal irrigation totals.
 
-Canonical seasonal water-availability treatments are:
+The policy never receives an action before planting. Its water-allocation state and `WaterBudgetController` account only for postplant controllable irrigation.
 
-- `W100 = 540 mm`;
-- `W80 = 432 mm`;
-- `W60 = 324 mm`.
+### 6.2 Total and policy-controllable seasonal budgets
 
-The budget is an upper bound, not a target consumption. Policies are allowed and encouraged to finish below the budget when the yield-protection requirement can be met with less irrigation.
+The local normal full-irrigation reference is 360 m3 mu^-1 = 540 mm. The canonical **total seasonal** water-availability treatments are:
 
-Execution constraints:
+- `W100_total = 540 mm`;
+- `W80_total = 432 mm`;
+- `W60_total = 324 mm`.
+
+Subtracting the common fixed 45-mm preplant event gives the postplant policy quotas enforced by `WaterBudgetController`:
+
+- `W100_policy = 495 mm`;
+- `W80_policy = 387 mm`;
+- `W60_policy = 279 mm`.
+
+Thus for every accepted episode,
+
+`IRCM_expected = 45 mm + sum(executed postplant policy irrigation)`.
+
+The total budget is an upper bound, not a target consumption. Policies may finish below their postplant quota when the yield-protection requirement can be met with less irrigation.
+
+Execution constraints for postplant actions:
 
 - maximum event depth: 45 mm, corresponding to the field statement that a single event does not exceed 30 m3 mu^-1;
 - exact no-op: 0 mm;
 - minimum positive execution quantum: 0.1 mm;
 - execution resolution: 0.1 mm;
 - minimum interval: 0 days; no hand-coded spacing rule is imposed;
-- non-policy seasonal irrigation: 0 mm;
+- fixed/non-policy seasonal irrigation: 45 mm;
 - IRCM reconciliation tolerance: 0.1 mm.
 
-Thus the action executor accepts either zero irrigation or a positive depth on the 0.1-mm grid up to 45 mm, subject to remaining seasonal budget.
+Thus the action executor accepts either zero irrigation or a positive depth on the 0.1-mm grid up to 45 mm, subject to the remaining **postplant** quota.
 
 ## 7. Weather provenance and split
 
@@ -135,15 +153,13 @@ The repository also contains legacy `era5`-directory copies for 2023-2025. They 
 
 ## 8. Reference yield
 
-For weather year `w`, define the yield reference as the full-water DSSAT yield under the same weather realization and exactly the same non-water management:
+For weather year `w`, define the yield reference as the W100 full-water DSSAT reference under the same weather realization and exactly the same non-water management:
 
-`Y_ref(w) = full-water reference yield for weather year w`.
+`Y_ref(w) = W100 reference yield for weather year w`.
 
-Risk/yield comparisons should use the normalized quantity
+The concrete W100 postplant schedule is frozen with the agricultural-baseline protocol; its total irrigation must equal 540 mm including the common 45-mm preplant event.
 
-`Y_pi(w) / Y_ref(w)`.
-
-This avoids treating a single fixed absolute yield as equally attainable under every weather year. `Y_ref(w)` is an offline evaluation/constraint reference and is not exposed to the actor observation.
+Risk/yield comparisons should use `Y_pi(w) / Y_ref(w)`. `Y_ref(w)` is an offline evaluation/constraint reference and is never exposed to the actor observation.
 
 The numerical yield-protection target `eta` and lower-tail fraction `alpha` remain to be frozen before learned-method formal evaluation.
 
@@ -153,12 +169,11 @@ Canonical template:
 
 `run/formal/awm_protocol_v1_2000.COX.in`
 
-The 2000 instance is an engineering instantiation of the protocol used for real-DSSAT integration tests. Weather-year execution will transplant the year while keeping calendar DOYs and all non-weather management fixed.
-
 Required properties:
 
 - exactly one `{{AWM_IRRIGATION_EVENTS}}` marker;
-- no pre-existing explicit irrigation rows;
+- exactly one fixed non-policy irrigation row, `00116 IR005 45.00`;
+- no other pre-existing irrigation rows;
 - site metadata contains Huaxing/Changji/Xinjiang and no Jiangdu/Jiangsu residue;
 - `IB0007` cultivar;
 - `PMALB=0.12`, `PMWD=22.5`;
@@ -170,14 +185,14 @@ Required properties:
 
 ## 10. What remains outside protocol v1
 
-The following are intentionally not invented here and must be frozen separately before the corresponding analyses:
+The following remain to be frozen separately before the corresponding formal analyses:
 
 - real-world cultivar name for `IB0007` in manuscript prose;
 - `eta` and `alpha` for the RCWA-RL yield-risk constraint;
 - climate-category thresholds for dry/normal/wet/hot-dry post-hoc analysis;
-- conventional baseline schedule;
-- ET/water-balance baseline trigger and efficiency parameters;
-- REW baseline threshold and event depth;
+- the quota-normalized conventional postplant schedule;
+- ET/water-balance baseline parameters;
+- REW baseline parameters;
 - RL training seeds and learned-method hyperparameters.
 
 A later field-derived nitrogen schedule may motivate protocol v2, but protocol v1 remains an immutable reproducible experiment definition.
