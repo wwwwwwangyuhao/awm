@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Iterable
 
@@ -91,6 +92,21 @@ def _fertilizer_n_total(rows: list[str]) -> float | None:
     return float(sum(values))
 
 
+def _irrigation_total(rows: list[str]) -> float | None:
+    if not rows:
+        return 0.0
+    values: list[float] = []
+    for row in rows:
+        parts = row.split()
+        if len(parts) < 4:
+            return None
+        try:
+            values.append(float(parts[3]))
+        except ValueError:
+            return None
+    return float(sum(values))
+
+
 def _management_switches(rows: list[str]) -> dict[str, str]:
     """Parse the DSSAT @N MANAGEMENT switch row.
 
@@ -114,10 +130,22 @@ def _management_switches(rows: list[str]) -> dict[str, str]:
     }
 
 
-def audit_cox_template(path: str | Path) -> dict[str, object]:
+def audit_cox_template(
+    path: str | Path,
+    *,
+    expected_nonpolicy_irrigation_mm: float = 0.0,
+    irrigation_tolerance_mm: float = 1e-6,
+) -> dict[str, object]:
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise FileNotFoundError(source)
+
+    expected_nonpolicy = float(expected_nonpolicy_irrigation_mm)
+    tolerance = float(irrigation_tolerance_mm)
+    if not math.isfinite(expected_nonpolicy) or expected_nonpolicy < 0.0:
+        raise ValueError("expected_nonpolicy_irrigation_mm must be finite and >= 0")
+    if not math.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("irrigation_tolerance_mm must be finite and >= 0")
 
     text = source.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -136,6 +164,7 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         lines, ("@N", "NITROGEN", "NMDEP", "NMTHR")
     )
     management_switches = _management_switches(management_rows)
+    explicit_irrigation_total = _irrigation_total(irrigation_rows)
 
     marker_count = text.count(IRRIGATION_MARKER)
     structural_errors: list[str] = []
@@ -143,9 +172,13 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         structural_errors.append(
             f"AWM irrigation marker count must be exactly one, got {marker_count}"
         )
-    if irrigation_rows:
+    if explicit_irrigation_total is None:
+        structural_errors.append("explicit irrigation rows are not parseable")
+    elif abs(explicit_irrigation_total - expected_nonpolicy) > tolerance:
         structural_errors.append(
-            "template contains explicit irrigation rows in addition to the AWM marker"
+            "explicit fixed/nonpolicy irrigation mismatch: "
+            f"actual={explicit_irrigation_total}, expected={expected_nonpolicy}, "
+            f"tolerance={tolerance}"
         )
     if not cultivar_rows:
         structural_errors.append("cultivar row not found")
@@ -214,6 +247,9 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         "mulch_rows": mulch_rows,
         "planting_rows": planting_rows,
         "explicit_irrigation_rows": irrigation_rows,
+        "explicit_nonpolicy_irrigation_total_mm": explicit_irrigation_total,
+        "expected_nonpolicy_irrigation_mm": expected_nonpolicy,
+        "irrigation_tolerance_mm": tolerance,
         "fertilizer_rows": fertilizer_rows,
         "explicit_fertilizer_n_total_kg_ha": fertilizer_n_total,
         "management_rows": management_rows,
@@ -231,9 +267,24 @@ def main() -> None:
     )
     parser.add_argument("cox")
     parser.add_argument("--output")
+    parser.add_argument(
+        "--expected-nonpolicy-irrigation-mm",
+        type=float,
+        default=0.0,
+        help="fixed explicit irrigation expected in the template before AWM policy rows",
+    )
+    parser.add_argument(
+        "--irrigation-tolerance-mm",
+        type=float,
+        default=1e-6,
+    )
     args = parser.parse_args()
 
-    report = audit_cox_template(args.cox)
+    report = audit_cox_template(
+        args.cox,
+        expected_nonpolicy_irrigation_mm=args.expected_nonpolicy_irrigation_mm,
+        irrigation_tolerance_mm=args.irrigation_tolerance_mm,
+    )
     payload = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         destination = Path(args.output)
