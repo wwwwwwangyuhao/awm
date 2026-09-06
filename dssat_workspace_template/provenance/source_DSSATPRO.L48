@@ -1,0 +1,14 @@
+*** *  DSSAT PROFILE LINUX* ***
+
+MCO // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0 dscsm048 CRGRO048
+
+STD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/StandardData
+CRD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/Genotype
+
+ASD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/Seasonal
+AQD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/Sequence
+APD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/Spatial
+PSD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/Pest
+ECD // /home/wangyh24/ppo/glt_ppo_plus/ppo_agent_0/Economic
+
+

@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "status": "versioned_awm_runtime_template",
+  "simulator": {
+    "base_version": "4.8.5",
+    "build_label": "lab-dssat-4.8.5-mulch",
+    "executable": "dscsm048",
+    "description": "Laboratory-custom DSSAT 4.8.5 executable with mulch functionality used by the experiment COX configuration.",
+    "source_patch_and_compiler_provenance": "TBD",
+    "expected_source_git_blob_sha1": "37c88710d0518d4e20a02881e884652973f559c3",
+    "expected_size_bytes": 14603784
+  },
+  "migration_source": {
+    "repository": "wwwwwwangyuhao/lrmb",
+    "commit": "d56336e09fdb9a9aea60ae61eaa892833314ab33",
+    "path": "dssat_workspace_template",
+    "method": "read-only git archive; no source checkout or writes"
+  },
+  "inventory": {
+    "era5_weather_years": [
+      2000,
+      2001,
+      2002,
+      2003,
+      2004,
+      2005,
+      2006,
+      2007,
+      2008,
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "station_weather_years": [
+      2023,
+      2024,
+      2025
+    ],
+    "excluded_noncanonical_source_items": [
+      "Genotype/COGRO048_别人的参数.CUL",
+      "data/wth/legacy_import/",
+      "DSSATPRO_完整版.L48"
+    ],
+    "note": "Excluded files are historical/reference items and are not required by the canonical AWM cotton runtime."
+  },
+  "files": {
+    "DATA.CDE": {
+      "size_bytes": 126018,
+      "sha256": "59152d0857daf19a1151726e2659ed433d6d810b1d008a40ac8f211d0e4ffb82",
+      "git_blob_sha1": "3b1d00cd88c93c5f907b899ecba3423ea3d6f6e1"
+    },
+    "DETAIL.CDE": {
+      "size_bytes": 54573,
+      "sha256": "2d713edec631779fd49cfca8780f44ae1b631292d246c7674949e6cc7347b939",
+      "git_blob_sha1": "d2219003874a932f12b276a8c144a998e1b7766a"
+    },
+    "Genotype/COGRO048.CUL": {
+      "size_bytes": 2999,
+      "sha256": "a778c46fea89c29f2302c6569c3a18b4cb0a637e6e96ed9851760d3ccd8a6bf1",
+      "git_blob_sha1": "36f44132c4410f0276e9d9fa5bffee21ec97a7d1"
+    },
+    "Genotype/COGRO048.ECO": {
+      "size_bytes": 6092,
+      "sha256": "efabbff8a2b9a06b2f7041b0d5679207cdec2577ab9f7cbf5d0b1f5e4bb81516",
+      "git_blob_sha1": "81836da75b681a1b23e7c16320423849ad2b1666"
+    },
+    "Genotype/COGRO048.SPE": {
+      "size_bytes": 11428,
+      "sha256": "8885c65a0d17e5efd636d09753ac0e58c54c02e6a4739748db1fbb75149bd0f4",
+      "git_blob_sha1": "55912ae8cba4a26b455ea655f8af31123944ee70"
+    },
+    "SIMULATION.CDE": {
+      "size_bytes": 11010,
+      "sha256": "8a5f49af4b7c6039325635e3fb2e675c2d7607edfb9307bc11a5d5107009ff1c",
+      "git_blob_sha1": "3879ae12017893a5ef7a8002bb5708d904e660b3"
+    },
+    "StandardData/CO2048.WDA": {
+      "size_bytes": 17620,
+      "sha256": "4e3142b0f380e0894005f568b30a908a5e91984771b9607b0cc7635df37213d9",
+      "git_blob_sha1": "c0fc8d94e9551fcd41c54a23738e33d92794ecb8"
+    },
+    "StandardData/FERCH048.SDA": {
+      "size_bytes": 36691,
+      "sha256": "d66a5499249d8aeac4946f058a65ac89d5cab0a4a23273a9639e82851864ea36",
+      "git_blob_sha1": "04aad25e626469d79277b0de2b2daea2639737ec"
+    },
+    "data/CDE/DATA.CDE": {
+      "size_bytes": 126018,
+      "sha256": "59152d0857daf19a1151726e2659ed433d6d810b1d008a40ac8f211d0e4ffb82",
+      "git_blob_sha1": "3b1d00cd88c93c5f907b899ecba3423ea3d6f6e1"
+    },
+    "data/CDE/DETAIL.CDE": {
+      "size_bytes": 54573,
+      "sha256": "2d713edec631779fd49cfca8780f44ae1b631292d246c7674949e6cc7347b939",
+      "git_blob_sha1": "d2219003874a932f12b276a8c144a998e1b7766a"
+    },
+    "data/CDE/ECONOMIC.CDE": {
+      "size_bytes": 2891,
+      "sha256": "db2abdc821f20ee401806edf6bfeed3b08c09011830f561b84c32a02929ccd8c",
+      "git_blob_sha1": "6326e83ee89534ae0e4e042a6494325163570b9b"
+    },
+    "data/CDE/GCOEFF.CDE": {
+      "size_bytes": 3693,
+      "sha256": "94a8fb795a993e7d2db20ce03034f8988000b99b3794b0145a06e5b043965eb5",
+      "git_blob_sha1": "bbae4083a4101450ebc9d7219484fe68b7d725b8"
+    },
+    "data/CDE/GRSTAGE.CDE": {
+      "size_bytes": 38657,
+      "sha256": "8a0aa69bf591a7b4f4c14766ad35594619c73372a141579232a3ad40f73db39b",
+      "git_blob_sha1": "8eb5834648710140bdd1b179380c65da49a93983"
+    },
+    "data/CDE/JDATE.CDE": {
+      "size_bytes": 4090,
+      "sha256": "2e5d9902fa71575cbf16a537db704e12c7ca2fde229911fc52d63e24d72b4e22",
+      "git_blob_sha1": "c8719e7109f49a7e64e361f846a7ec3175e839b7"
+    },
+    "data/CDE/OUTPUT.CDE": {
+      "size_bytes": 6744,
+      "sha256": "383b0e2dd69c5150c40739d154defd15d78e90a9615679d184369a397f5b4208",
+      "git_blob_sha1": "058387f5a0b820d36be66f188f59b0f2d67c6f05"
+    },
+    "data/CDE/PEST.CDE": {
+      "size_bytes": 731,
+      "sha256": "160d4c21c50942134a8a9c640638f86a38e936cf598cf2bdbb4650186d0dc3c6",
+      "git_blob_sha1": "7996851b265af9be1bd390c9ebe674b2e4eaa72c"
+    },
+    "data/CDE/SIMULATION.CDE": {
+      "size_bytes": 11010,
+      "sha256": "8a5f49af4b7c6039325635e3fb2e675c2d7607edfb9307bc11a5d5107009ff1c",
+      "git_blob_sha1": "3879ae12017893a5ef7a8002bb5708d904e660b3"
+    },
+    "data/CDE/SOIL.CDE": {
+      "size_bytes": 6398,
+      "sha256": "327acada3ff407d4157d98f8fed932aaa4b1f5905155320cdc1f22f50b7ecee4",
+      "git_blob_sha1": "314b46b1623994f7574c60eb891469a3e3476859"
+    },
+    "data/CDE/WEATHER.CDE": {
+      "size_bytes": 10249,
+      "sha256": "c4739d8054e1c125282f3eb14344a388a9db98b8996d6ac82fa28b41414f4bfb",
+      "git_blob_sha1": "59ce3e910458bebd2926e8a680775b6c0f1eaab6"
+    },
+    "data/soil/SOIL.SOL": {
+      "size_bytes": 1885,
+      "sha256": "c396a2ed7a1ab3a9f8ae92787ecbf5e14d30ceecdc162e1e0e6323aae5a40646",
+      "git_blob_sha1": "591c4ea701797ee9a0f20e014d6e12a372804847"
+    },
+    "data/wth/era5/XJHX0001.WTH": {
+      "size_bytes": 15196,
+      "sha256": "6b86a8e5cedc6d7a56d1872db822efbc5d672622703dc578e9afdf21b522ec4f",
+      "git_blob_sha1": "c1256e7404c6e4340d197bc855242b31e4c1f395"
+    },
+    "data/wth/era5/XJHX0101.WTH": {
+      "size_bytes": 15155,
+      "sha256": "2938c3b2cd6e978ee6d0a4d11500d0b2756edddfe3062b4408b639ca2fbe6882",
+      "git_blob_sha1": "393a69affee651bbf39001981b2925fae61c91ae"
+    },
+    "data/wth/era5/XJHX0201.WTH": {
+      "size_bytes": 15155,
+      "sha256": "a0794859ce04db1b2f8fea97f8728ad4aef932fd10fd2cacb748a6dbf64ba83c",
+      "git_blob_sha1": "1ab289a196254305fc39ad950f2617d975e6f7cc"
+    },
+    "data/wth/era5/XJHX0301.WTH": {
+      "size_bytes": 15155,
+      "sha256": "352677204feddef83b8575fce01465543b76514620efe6113d15380c450a8943",
+      "git_blob_sha1": "4a981b5b6bb5eda222907eac7c41eeb06f571dfb"
+    },
+    "data/wth/era5/XJHX0401.WTH": {
+      "size_bytes": 15196,
+      "sha256": "7bc5e50f955450212e0b458afa2ef2155161c3186a80174a328bc89425b6bab1",
+      "git_blob_sha1": "6d3cae4de6d06dffcc229c38521738c842772294"
+    },
+    "data/wth/era5/XJHX0501.WTH": {
+      "size_bytes": 15155,
+      "sha256": "78d07964989be7124760b49fd8c23f93c612054cca4563e1f9d7901794549660",
+      "git_blob_sha1": "6c2d252def4767a0e12f1dba14d89bd93a79f28b"
+    },
+    "data/wth/era5/XJHX0601.WTH": {
+      "size_bytes": 15155,
+      "sha256": "9365d9c72fcaca71da49e78935e0a9094d0ba5ae4ecf680d2a7568521bdd1c83",
+      "git_blob_sha1": "e480fbf4d865b66bc7745993c305d108c8c30268"
+    },
+    "data/wth/era5/XJHX0701.WTH": {
+      "size_bytes": 15155,
+      "sha256": "9b4c6765cd4d3a1479400c8fd6df81dbc15f699a3f1dd0cb3ef35c17257c861a",
+      "git_blob_sha1": "a42bf20a8530e0cd4df2755748f14608b0b11993"
+    },
+    "data/wth/era5/XJHX0801.WTH": {
+      "size_bytes": 15196,
+      "sha256": "a477ee441cb4df852308877d7397851c6d4d4aba2da09a190b38bbc6a4a4cec7",
+      "git_blob_sha1": "5a57b72bb6eb928bebffff3f30a91f74c74f4049"
+    },
+    "data/wth/era5/XJHX0901.WTH": {
+      "size_bytes": 15155,
+      "sha256": "edaa86280e3787740e78297a88ea8c83ce1dcac3ba060b1cddac436bd5bb230c",
+      "git_blob_sha1": "ea1a89b66bffe356dc86261ff5382e6e5537ac3d"
+    },
+    "data/wth/era5/XJHX1001.WTH": {
+      "size_bytes": 15155,
+      "sha256": "063c113c8b47b540be08682516f1dce9c9c6cf70886c7e9933eed369c07d1439",
+      "git_blob_sha1": "5f2caa04081d54758ca051e2f3bfc1468ef5af37"
+    },
+    "data/wth/era5/XJHX1101.WTH": {
+      "size_bytes": 15155,
+      "sha256": "63ca81dc267d73d396537b23009fb5d0d7bcdea92243d1a959e9ab0d0a2093f4",
+      "git_blob_sha1": "cc837897694d157d3ce5eb51e423751f811d2434"
+    },
+    "data/wth/era5/XJHX1201.WTH": {
+      "size_bytes": 15196,
+      "sha256": "0a8752df4b36fdbb7e6a26a3d5ec4b92b405c8946f7ff6859c386a083fe78fd6",
+      "git_blob_sha1": "a5e6a1275eaffec98be01ae32681db24982ad697"
+    },
+    "data/wth/era5/XJHX1301.WTH": {
+      "size_bytes": 15155,
+      "sha256": "c371d5c4800223aaf375bdce2d38a356d5dbf9cf68e4e80c79e0e0cc7feb95d0",
+      "git_blob_sha1": "77dc493f369fe41f2d83d5d50c4222fa1b71f084"
+    },
+    "data/wth/era5/XJHX1401.WTH": {
+      "size_bytes": 15155,
+      "sha256": "95e1de63e5be6f049ec1b7624259383405f2dc09d8f7773d43cb9d92a666177b",
+      "git_blob_sha1": "38cc2957ef411f5f1eab230d1a6feaea3ffb2d0d"
+    },
+    "data/wth/era5/XJHX1501.WTH": {
+      "size_bytes": 15155,
+      "sha256": "2d428f1ea25a7cf99c4db55d28acc52543ae3f61e833ff50f542cc4e4558e7e5",
+      "git_blob_sha1": "578cce0d1a11eca90ee4bd72dc9f0c0b4a7b8b50"
+    },
+    "data/wth/era5/XJHX1601.WTH": {
+      "size_bytes": 15196,
+      "sha256": "9ad06743c540208235bba5579ee884c12afd39ccdb167a46a894c6e550d6b256",
+      "git_blob_sha1": "11d4b4aa7ec7841e692bc4ffe551fb271d25c66b"
+    },
+    "data/wth/era5/XJHX1701.WTH": {
+      "size_bytes": 15155,
+      "sha256": "867af2f0e9079fb17c882fc5af24b1efc8bc5b84ec42c800c447422dbeb1eea3",
+      "git_blob_sha1": "4a4a7b0e93dab9cc181e01400361df06a72ad297"
+    },
+    "data/wth/era5/XJHX1801.WTH": {
+      "size_bytes": 15155,
+      "sha256": "c8a1a9876a4be03224ed49d04dee38f53a7567782c4b2496553b42ad4d3fbd49",
+      "git_blob_sha1": "5060d9bc6ab063f405dd9cf04314764697a31f7f"
+    },
+    "data/wth/era5/XJHX1901.WTH": {
+      "size_bytes": 15155,
+      "sha256": "f085deabb1478a8438d678192182ed01b669a8a6533c0de405083c79b99a199c",
+      "git_blob_sha1": "eb237f37164cb2439f5105c953dfd4fe4117aefd"
+    },
+    "data/wth/era5/XJHX2001.WTH": {
+      "size_bytes": 15196,
+      "sha256": "e27d64f9710b1d757eb9e1d817be38947020b1e82b27a7de7e7589e42610f5e8",
+      "git_blob_sha1": "4ea3f057d624e0bf525dda3d644dd90f13433331"
+    },
+    "data/wth/era5/XJHX2101.WTH": {
+      "size_bytes": 15155,
+      "sha256": "891cecabc5673c4fe57d1ce1bbf10b1ed4ce12154a572e9d987d542f3a96115f",
+      "git_blob_sha1": "ab0e646d39c778613781615d9f8d291f9a15d904"
+    },
+    "data/wth/era5/XJHX2201.WTH": {
+      "size_bytes": 15155,
+      "sha256": "cf1018148f9b0947485a51b15b85e56bf8cae5fdd09819f4cf67703beddd8b6e",
+      "git_blob_sha1": "8371aa51d3aaa24616d9e4217c1bcf1b3579649d"
+    },
+    "data/wth/era5/XJHX2301.WTH": {
+      "size_bytes": 15155,
+      "sha256": "22525ae5af4d57594999a6ea0128fd99f3852fedf531d4ecf297f40d217eaaf2",
+      "git_blob_sha1": "6e8be8b8e369d955aa1ae26d50a80c37f3ca475a"
+    },
+    "data/wth/era5/XJHX2401.WTH": {
+      "size_bytes": 15196,
+      "sha256": "be6e6d9ae68e7ad2b47339410587dea23fbca112e4494f06cb19581aea107863",
+      "git_blob_sha1": "bb2225b45824150c9fbb9bb4a17ff3f973b12946"
+    },
+    "data/wth/era5/XJHX2501.WTH": {
+      "size_bytes": 15155,
+      "sha256": "b66ed070f95c58f0e2e2feb95082a94b2b81a5b65569830b62579e5c90520173",
+      "git_blob_sha1": "b52a4b301b2c743f2a3e9a88420a32690dfb3ccb"
+    },
+    "data/wth/station/XJHX2301.WTH": {
+      "size_bytes": 15155,
+      "sha256": "22525ae5af4d57594999a6ea0128fd99f3852fedf531d4ecf297f40d217eaaf2",
+      "git_blob_sha1": "6e8be8b8e369d955aa1ae26d50a80c37f3ca475a"
+    },
+    "data/wth/station/XJHX2401.WTH": {
+      "size_bytes": 15196,
+      "sha256": "be6e6d9ae68e7ad2b47339410587dea23fbca112e4494f06cb19581aea107863",
+      "git_blob_sha1": "bb2225b45824150c9fbb9bb4a17ff3f973b12946"
+    },
+    "data/wth/station/XJHX2501.WTH": {
+      "size_bytes": 15155,
+      "sha256": "b66ed070f95c58f0e2e2feb95082a94b2b81a5b65569830b62579e5c90520173",
+      "git_blob_sha1": "b52a4b301b2c743f2a3e9a88420a32690dfb3ccb"
+    },
+    "dscsm048": {
+      "size_bytes": 14603784,
+      "sha256": "5dd68e3079b6422581b69247c635de16dd7b06d78340928b3d5d5e525d7af09d",
+      "git_blob_sha1": "37c88710d0518d4e20a02881e884652973f559c3"
+    },
+    "provenance/source_DSSATPRO.L48": {
+      "size_bytes": 525,
+      "sha256": "7fedfc0800d2eaa35463a793f7c0597079e9961b7812410e28d0bc19587bfeab",
+      "git_blob_sha1": "f2a5d43ad10edb67d72e10468e72992e735662fd"
+    }
+  }
+}

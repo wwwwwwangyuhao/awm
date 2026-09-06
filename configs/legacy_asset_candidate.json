@@ -1,22 +1,25 @@
 {
-  "status": "candidate_provenance_not_protocol_locked",
+  "status": "one_time_migration_source_only",
   "source_repository": "wwwwwwangyuhao/lrmb",
-  "source_branch": "exp/sapg",
-  "source_commit": "b6257a29249969ea4b43849debe3e65657902e7d",
-  "legacy_environment": {
-    "site_code": "XJHX",
-    "planting_doy": 119,
-    "emergence_doy": 133,
-    "decision_horizon_days": 125,
-    "legacy_max_irrigation_mm": 50.0
+  "source_branch": "exp/v3-recoverable-policy-manifold-train10000",
+  "source_commit": "d56336e09fdb9a9aea60ae61eaa892833314ab33",
+  "source_tree": "6010966b70cc2499209b0c95d1bea4d0fd685251",
+  "custom_dssat": {
+    "base_version": "4.8.5",
+    "build_label": "lab-dssat-4.8.5-mulch",
+    "executable": "dssat_workspace_template/dscsm048",
+    "source_git_blob_sha1": "37c88710d0518d4e20a02881e884652973f559c3",
+    "source_size_bytes": 14603784,
+    "description": "Laboratory-custom DSSAT 4.8.5 binary with mulch functionality required by the experiment COX configuration.",
+    "source_patch_and_compiler_provenance": "TBD"
   },
   "tracked_assets": {
-    "dssat_exec": "dssat_workspace_template/dscsm048",
-    "dssatpro_l48": "dssat_workspace_template/DSSATPRO.L48",
     "soil": "dssat_workspace_template/data/soil/SOIL.SOL",
     "genotype_dir": "dssat_workspace_template/Genotype",
+    "standard_data_dir": "dssat_workspace_template/StandardData",
     "era5_weather_dir": "dssat_workspace_template/data/wth/era5",
     "station_weather_dir": "dssat_workspace_template/data/wth/station"
   },
-  "warning": "Do not treat legacy agronomic settings as formal AWM values until the validated COX template and protocol are reviewed and locked."
+  "target_state": "After the one-time migration is committed to AWM, LRMB is not a runtime dependency.",
+  "warning": "The LRMB repository is a read-only migration source only. Do not use legacy agronomic constants as formal AWM protocol values without independent review."
 }

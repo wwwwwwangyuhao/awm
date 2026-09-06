@@ -1,133 +1,174 @@
 # Real DSSAT worker and agricultural-baseline smoke runbook
 
-This runbook is the server-side step that cannot be executed by GitHub-side development. It must be completed on the Linux machine that already runs DSSAT successfully.
+This runbook assumes the one-time asset migration in
+`docs/SELF_CONTAINED_DSSAT_RUNTIME.md` has already been completed and committed
+to AWM.
 
-## 1. Start from an existing successful worker
+The real smoke must use only AWM-owned assets under:
 
-Use the same DSSAT executable/runtime family that has already produced valid cotton simulations. The legacy asset manifest in `configs/legacy_asset_candidate.json` points to candidate assets in `wwwwwwangyuhao/lrmb@b6257a29249969ea4b43849debe3e65657902e7d`.
+```text
+dssat_workspace_template/
+```
 
-Do **not** copy an arbitrary old training COX containing an RL irrigation trajectory and call it the AWM baseline template.
+LRMB must not be consulted at runtime.
 
-Preferred source:
-
-- reset/no-policy worker;
-- successful complete DSSAT season;
-- correct site/year/cultivar/soil/fixed-N management;
-- no policy-generated irrigation rows.
-
-## 2. Freeze the rendered COX and record hashes
+## 1. Verify the versioned template
 
 From the AWM checkout:
 
 ```bash
-python -m awm.dssat.freeze_template \
+PYTHONPATH="$PWD/src" python - <<'PY'
+from awm.dssat.runtime_assets import validate_versioned_template
+print(validate_versioned_template("dssat_workspace_template"))
+PY
+```
+
+The template must contain the laboratory custom DSSAT 4.8.5 mulch build,
+canonical Genotype/StandardData, soil, and weather inventories.
+
+## 2. Build an isolated mutable worker
+
+```bash
+PYTHONPATH="$PWD/src" python - <<'PY'
+from awm.dssat.runtime_assets import prepare_worker_from_template
+
+report = prepare_worker_from_template(
+    "dssat_workspace_template",
+    "runtime/w0",
+    replace=True,
+)
+print(report)
+PY
+```
+
+Required:
+
+- worker paths contain no LRMB/PPO references;
+- `DSSATPRO.L48` is generated inside `runtime/w0`;
+- DSSATPRO A80 preflight passes;
+- `runtime/w0/dscsm048` is executable.
+
+## 3. Freeze a validated AWM COX template
+
+Do not invent a new agronomic experiment file just to make smoke pass. Start
+from a known-good rendered COX with the intended cultivar, planting/emergence,
+soil initial conditions, fixed nitrogen, mulch settings and simulation
+controls.
+
+```bash
+PYTHONPATH="$PWD/src" python -m awm.dssat.freeze_template \
   --source-cox /absolute/path/to/known_good_reset.COX \
   --output-template /absolute/path/to/awm_base.COX.in \
   --report /absolute/path/to/awm_base.template.json
 ```
 
-The default command fails if explicit irrigation rows are present. Inspect and classify them first. Only if they are confirmed policy-generated and should be removed may you deliberately use:
+The default fails if explicit irrigation rows are present. Classify them before
+using `--allow-strip-existing-irrigation`.
 
-```bash
-python -m awm.dssat.freeze_template \
-  --source-cox /absolute/path/to/source.COX \
-  --output-template /absolute/path/to/awm_base.COX.in \
-  --report /absolute/path/to/awm_base.template.json \
-  --allow-strip-existing-irrigation
+Once the final AWM COX base is reviewed, it should also be versioned inside AWM
+rather than left in an LRMB runtime.
+
+## 4. Reset smoke
+
+Create a run-specific JSON using only:
+
+- `runtime/w0/dscsm048`;
+- `runtime/w0/Genotype`;
+- `runtime/w0/StandardData`;
+- `runtime/w0/data/soil/SOIL.SOL`;
+- `runtime/w0/data/wth/...`;
+- the frozen AWM COX template.
+
+The daily output inventory must cover all 13 files required by the 74-D DSSAT
+state:
+
+```text
+PlantGro.OUT
+SoilWat.OUT
+Weather.OUT
+ET.OUT
+GHG.OUT
+MgmtOps.OUT
+Mulch.OUT
+N2O.OUT
+PlantC.OUT
+PlantN.OUT
+SoilTemp.OUT
+SoilWater.OUT
+SoilNi.OUT
 ```
 
-Before continuing, manually verify the frozen template's cultivar, planting/emergence dates, initial soil conditions, fixed nitrogen, mulch/residue settings, simulation controls and any non-policy management. Record the template/report hashes in `EXPERIMENT_PROTOCOL.md`.
-
-## 3. Baseline reset smoke
-
-Copy `configs/real_baseline_smoke.example.json` to a run-specific JSON and replace every `TBD` value with actual worker-local paths/parameters.
-
-First run the lower-level reset smoke if desired:
+Run:
 
 ```bash
-python -m awm.dssat.smoke --config /absolute/path/to/real_worker_smoke.json
+PYTHONPATH="$PWD/src" python -m awm.dssat.smoke \
+  --config /absolute/path/to/real_worker_smoke.json
 ```
 
-Required result:
+Required:
 
-- `DSSATPRO.L48` A80 preflight passes;
-- DSSAT complete-season return code is zero;
-- planting-day state parses;
-- Summary.OUT contains HWAM and IRCM.
+- DSSAT complete-season return code zero;
+- planting-day daily state parses;
+- Summary.OUT contains HWAM and IRCM;
+- no nonterminal observation receives Summary.OUT fields.
 
-## 4. Full 125-day conventional baseline smoke
+## 5. Full 125-day engineering smoke
 
-Create a baseline config with the preregistered local schedule:
+Before formal agricultural parameters are locked, use a clearly labelled
+engineering-only one-event config to exercise:
 
-```json
-"baseline": {
-  "type": "local_conventional",
-  "schedule_mm_by_action_dap": {
-    "TBD": "TBD"
-  }
-}
+```text
+observation
+→ requested irrigation
+→ water-budget projection
+→ COX write
+→ custom DSSAT rerun
+→ output refresh
+→ terminal IRCM reconciliation
 ```
 
-Then run:
+Run:
 
 ```bash
-python -m awm.baselines.smoke \
-  --config /absolute/path/to/conventional_smoke.json \
-  --audit-output /absolute/path/to/conventional_smoke.audit.json
+PYTHONPATH="$PWD/src" python -m awm.baselines.smoke \
+  --config /absolute/path/to/one_event_smoke.json \
+  --audit-output /absolute/path/to/one_event_smoke.audit.json
 ```
 
 Do not accept the run unless:
 
-- status is `passed`;
-- the episode reaches all 125 decisions;
-- terminal irrigation accounting passes;
-- `IRCM = nonpolicy_irrigation + executed policy irrigation` within the frozen tolerance;
-- no future/seasonal field appears in the policy observation;
-- the audit shows plausible event dates and executed depths.
+- all 125 decisions complete;
+- the intended positive event triggers exactly one management write/rerun;
+- no-op days do not rerun DSSAT;
+- action DAP follows the frozen `policy_day d -> management day d+1` semantics;
+- terminal irrigation accounting passes.
 
-## 5. Potential-ET baseline smoke
+## 6. Agricultural baseline smoke
 
-Use:
+Only after formal baseline parameters are preregistered, run:
 
-```json
-"baseline": {
-  "type": "potential_et_water_balance",
-  "trigger_deficit_mm": "TBD",
-  "irrigation_efficiency": "TBD",
-  "effective_rain_fraction": "TBD",
-  "refill_fraction": "TBD"
-}
-```
+1. Local Conventional Irrigation;
+2. Potential-ET Water Balance;
+3. Root-zone REW Threshold.
 
-Run the same CLI with a separate audit file. Confirm that only current/past `EOAA` and `PRED` drive the internal deficit; no future weather is supplied.
+All three must use the same AWM-owned worker assets and the same hard
+irrigation-system constraints.
 
-## 6. Root-zone REW baseline smoke
+## 7. Archive reproducibility evidence
 
-Use:
-
-```json
-"baseline": {
-  "type": "root_zone_rew_threshold",
-  "trigger_rew": "TBD",
-  "event_depth_mm": "TBD",
-  "fallback_rew_layers_1_based": ["TBD"]
-}
-```
-
-Confirm that trigger decisions follow root-length-weighted REW and that early-season fallback layers match the preregistered soil/root-zone interpretation.
-
-## 7. Archive before learned RL work
-
-Archive together:
+Archive:
 
 - exact AWM commit SHA;
-- DSSAT executable/version/hash if available;
-- DSSATPRO.L48;
-- frozen COX template and provenance report;
-- soil/genotype/weather files or their hashes/version identifiers;
-- exact smoke JSONs;
-- all three action-audit JSONs;
-- stdout/stderr logs;
-- final HWAM, IRCM and IWP summaries.
+- `dssat_workspace_template/ASSET_MANIFEST.json`;
+- custom `dscsm048` SHA256;
+- generated worker `DSSATPRO.L48`;
+- frozen AWM COX + hash;
+- soil/genotype/weather hashes;
+- smoke JSONs;
+- action audit JSONs;
+- stdout/stderr;
+- HWAM, IRCM, IWP;
+- IRCM reconciliation.
 
-Only after these three agricultural baselines complete the real-worker smoke should the standard learned RL baseline be implemented.
+A successful run that depends on any `/home/.../lrmb/...` runtime path does not
+count as an AWM isolation pass.
