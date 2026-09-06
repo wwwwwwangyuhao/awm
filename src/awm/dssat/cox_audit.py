@@ -91,6 +91,29 @@ def _fertilizer_n_total(rows: list[str]) -> float | None:
     return float(sum(values))
 
 
+def _management_switches(rows: list[str]) -> dict[str, str]:
+    """Parse the DSSAT @N MANAGEMENT switch row.
+
+    DSSAT's SIMULATION.CDE defines the five switches after the row code as
+    PLANT, IRRIG, FERTI, RESID and HARVS.  For this AWM protocol, IRRIG=R and
+    FERTI=R mean that irrigation and fertilizer are taken only from reported
+    explicit management rows.  The AUTOMATIC MANAGEMENT parameter tables may
+    remain present in FileX but are inert unless an automatic mode is selected.
+    """
+    if len(rows) != 1:
+        return {}
+    parts = rows[0].split()
+    if len(parts) < 7:
+        return {}
+    return {
+        "planting": parts[2].upper(),
+        "irrigation": parts[3].upper(),
+        "fertilization": parts[4].upper(),
+        "residue": parts[5].upper(),
+        "harvest": parts[6].upper(),
+    }
+
+
 def audit_cox_template(path: str | Path) -> dict[str, object]:
     source = Path(path).expanduser().resolve()
     if not source.is_file():
@@ -112,6 +135,7 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
     automatic_nitrogen_rows = _safe_rows(
         lines, ("@N", "NITROGEN", "NMDEP", "NMTHR")
     )
+    management_switches = _management_switches(management_rows)
 
     marker_count = text.count(IRRIGATION_MARKER)
     structural_errors: list[str] = []
@@ -136,6 +160,11 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
     note = _value_after_label(lines, "@NOTE")
     fertilizer_n_total = _fertilizer_n_total(fertilizer_rows)
 
+    irrigation_mode = management_switches.get("irrigation")
+    fertilization_mode = management_switches.get("fertilization")
+    automatic_irrigation_active = irrigation_mode in {"A", "F", "P", "W"}
+    automatic_nitrogen_active = fertilization_mode in {"A", "F"}
+
     review_flags: list[str] = []
     descriptive = " ".join(
         value for value in (experiment_details, address, site) if value
@@ -149,14 +178,23 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         review_flags.append("explicit_fertilizer_n_schedule_not_parseable")
     elif fertilizer_n_total <= 0.0:
         review_flags.append("explicit_fertilizer_n_total_is_zero")
-    if automatic_irrigation_rows:
-        review_flags.append(
-            "automatic_irrigation_settings_present_verify_management_control_semantics"
-        )
-    if automatic_nitrogen_rows:
-        review_flags.append(
-            "automatic_nitrogen_settings_present_verify_management_control_semantics"
-        )
+
+    if not management_switches:
+        review_flags.append("management_switch_row_not_parseable")
+    else:
+        if irrigation_mode != "R":
+            review_flags.append(
+                "irrigation_management_switch_must_be_reported_R_for_AWM_policy_rows"
+            )
+        if fertilization_mode != "R":
+            review_flags.append(
+                "fertilization_management_switch_must_be_reported_R_for_fixed_N"
+            )
+
+    if automatic_irrigation_rows and automatic_irrigation_active:
+        review_flags.append("automatic_irrigation_is_active")
+    if automatic_nitrogen_rows and automatic_nitrogen_active:
+        review_flags.append("automatic_nitrogen_is_active")
 
     return {
         "path": str(source),
@@ -179,8 +217,11 @@ def audit_cox_template(path: str | Path) -> dict[str, object]:
         "fertilizer_rows": fertilizer_rows,
         "explicit_fertilizer_n_total_kg_ha": fertilizer_n_total,
         "management_rows": management_rows,
+        "management_switches": management_switches,
         "automatic_irrigation_rows": automatic_irrigation_rows,
         "automatic_nitrogen_rows": automatic_nitrogen_rows,
+        "automatic_irrigation_active": automatic_irrigation_active,
+        "automatic_nitrogen_active": automatic_nitrogen_active,
     }
 
 
