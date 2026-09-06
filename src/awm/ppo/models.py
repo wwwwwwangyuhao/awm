@@ -5,7 +5,7 @@ The actor represents the mixed action distribution
     pi(g, z | s) = Bernoulli(g | s) * Normal(z | s)^g
 
 where ``g=0`` is exact no irrigation and, only when ``g=1``, the Gaussian
-latent is transformed to ``amount_fraction=(tanh(z)+1)/2``.  PPO stores and
+latent is transformed to ``amount_fraction=(tanh(z)+1)/2``. PPO stores and
 re-evaluates the sampled gate and pre-tanh latent; DSSAT execution projection
 never substitutes for this behavior probability contract.
 """
@@ -103,7 +103,6 @@ class HierarchicalIrrigationActor(nn.Module):
     def _amount_log_prob(self, dist: Normal, raw_amount: torch.Tensor) -> torch.Tensor:
         """Density after z -> (tanh(z)+1)/2 for active irrigation only."""
         base = dist.log_prob(raw_amount)
-        # log|d tanh(z)/dz|, written stably.
         tanh_log_det = 2.0 * (
             self._log_two.to(dtype=raw_amount.dtype)
             - raw_amount
@@ -127,16 +126,20 @@ class HierarchicalIrrigationActor(nn.Module):
         dist, gate_logits = self.components(state)
         active = irrigate.to(dtype=torch.bool)
         gate_lp = self._bernoulli_log_prob(gate_logits, active)
-        amount_lp = self._amount_log_prob(dist, raw_amount)
+        # Inactive samples have no amount random variable. Use a harmless finite
+        # placeholder so arbitrarily large ignored values cannot poison density
+        # arithmetic before torch.where masks them.
+        safe_raw = torch.where(active, raw_amount, torch.zeros_like(raw_amount))
+        amount_lp = self._amount_log_prob(dist, safe_raw)
         log_prob = gate_lp + torch.where(active, amount_lp, torch.zeros_like(amount_lp))
         if not torch.isfinite(log_prob).all():
             raise FloatingPointError("hierarchical log probability contains NaN/Inf")
-        # Diagnostic entropy surrogate. Formal entropy coefficient is zero in v1.
         gate_p = torch.sigmoid(gate_logits)
         gate_entropy = -(
             gate_p * F.logsigmoid(gate_logits)
             + (1.0 - gate_p) * F.logsigmoid(-gate_logits)
         )
+        # Diagnostic surrogate only; formal PPO entropy coefficient is zero.
         entropy = gate_entropy + gate_p * dist.entropy()
         return log_prob, entropy
 
@@ -154,13 +157,17 @@ class HierarchicalIrrigationActor(nn.Module):
             dtype=gate_logits.dtype,
         )
         active = gate_draw < torch.sigmoid(gate_logits)
-        eps = torch.randn(
-            dist.loc.shape,
-            generator=generator,
-            device=dist.loc.device,
-            dtype=dist.loc.dtype,
-        )
-        raw = dist.loc + dist.scale * eps
+        raw = torch.zeros_like(dist.loc)
+        active_idx = torch.nonzero(active, as_tuple=False).squeeze(-1)
+        if active_idx.numel() > 0:
+            eps = torch.randn(
+                (int(active_idx.numel()),),
+                generator=generator,
+                device=dist.loc.device,
+                dtype=dist.loc.dtype,
+            )
+            raw_active = dist.loc[active_idx] + dist.scale[active_idx] * eps
+            raw[active_idx] = raw_active
         amount_fraction = torch.where(
             active,
             (torch.tanh(raw) + 1.0) * 0.5,
@@ -177,7 +184,7 @@ class HierarchicalIrrigationActor(nn.Module):
     def deterministic(self, state: torch.Tensor) -> HierarchicalActionBatch:
         dist, gate_logits = self.components(state)
         active = torch.sigmoid(gate_logits) >= 0.5
-        raw = dist.loc
+        raw = torch.where(active, dist.loc, torch.zeros_like(dist.loc))
         amount_fraction = torch.where(
             active,
             (torch.tanh(raw) + 1.0) * 0.5,
