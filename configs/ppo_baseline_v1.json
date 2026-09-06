@@ -1,0 +1,145 @@
+{
+  "ppo_protocol_id": "awm-ppo-baseline-v1",
+  "status": "locked_before_formal_ppo_training",
+  "algorithm": "standard_single_policy_ppo",
+  "base_contracts": {
+    "agricultural": "awm-agricultural-v1",
+    "risk": "awm-risk-contract-v1",
+    "evaluation": "awm-learned-method-evaluation-v1"
+  },
+  "reference_provenance": {
+    "read_only_repository": "wwwwwwangyuhao/lrmb",
+    "read_only_branch": "exp/ppo",
+    "read_only_commit": "7a752c02294603b2100ed80cfef12a46f3e2f6ad",
+    "usage": "engineering reference for strict single-policy on-policy PPO and hierarchical gate/amount probability semantics only; no LRMB runtime dependency"
+  },
+  "environment": {
+    "observation_dim": 79,
+    "policy_water_budget_mm": 495.0,
+    "fixed_preplant_irrigation_mm": 45.0,
+    "training_water_availability": "W100 upper bound only; the learned policy minimizes actual use below this cap",
+    "training_years": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017],
+    "validation_years": [2018, 2019, 2020, 2021, 2022],
+    "locked_final_test_station_years": [2023, 2024, 2025],
+    "eta_levels": [0.90, 0.95, 0.98]
+  },
+  "policy": {
+    "single_policy": true,
+    "hierarchical_action": "Bernoulli irrigation gate plus active-only tanh-Gaussian amount_fraction",
+    "exact_noop": true,
+    "amount_fraction_range": [0.0, 1.0],
+    "amount_latent_log_std_clip": [-5.0, 1.0],
+    "gate_initial_probability": 0.5,
+    "behavior_probability_contract": "PPO likelihood ratios use the sampled gate and pre-tanh amount latent. Environment projection/canonicalization never replaces the sampled behavior action in the PPO log-probability.",
+    "actor_hidden_dims": [256, 128],
+    "critic_hidden_dims": [256, 128],
+    "activation": "tanh",
+    "layer_norm": true,
+    "actor_critic_parameter_sharing": false,
+    "policy_latent": false
+  },
+  "reward": {
+    "name": "trajectory_feasibility_ranked_scalar_surrogate",
+    "step_reward": "- executed_policy_irrigation_mm / 495",
+    "terminal_retention": "R = HWAM / Y_ref(weather_year)",
+    "terminal_violation_penalty": "0 if R >= eta else -(1 + eta - R)",
+    "episode_return": "- I_policy/495 - 1[R<eta]*(1 + eta - R)",
+    "gamma_requirement": 1.0,
+    "trajectory_ranking_property": "For a single trajectory, every target-feasible episode has return in [-1,0] and every target-infeasible episode has return below -1.",
+    "distribution_level_caveat": "PPO maximizes expected scalar return, so performance across weather years can compensate in expectation. This surrogate does not impose hard distribution-level feasibility and does not guarantee the LCVaR constraint.",
+    "not_claimed_as": "LCVaR optimization; PPO remains a scalar expected-return baseline and formal risk is evaluated separately using Risk Contract v1"
+  },
+  "optimizer": {
+    "name": "Adam",
+    "learning_rate": 0.0001,
+    "adam_beta1": 0.9,
+    "adam_beta2": 0.999,
+    "adam_eps": 1e-8,
+    "gamma": 1.0,
+    "gae_lambda": 1.0,
+    "gae_rationale": "The 125-day task has terminal yield protection as its main delayed signal; lambda=1 preserves undiscounted complete-episode credit assignment rather than exponentially attenuating the terminal consequence for early-season actions.",
+    "clip_epsilon": 0.2,
+    "update_epochs": 10,
+    "minibatch_size": 450,
+    "value_loss_coefficient": 0.5,
+    "entropy_coefficient": 0.0,
+    "max_grad_norm": 0.5,
+    "advantage_normalization": "full_rollout_standardization",
+    "value_loss": "unclipped_mse"
+  },
+  "rollout": {
+    "horizon_days_per_episode": 125,
+    "balanced_weather_eta_cells_per_update": 54,
+    "episodes_per_cell_per_update": 1,
+    "transitions_per_update": 6750,
+    "complete_episodes_only": true,
+    "strictly_on_policy": true,
+    "rollout_policy_version_must_match": true,
+    "minibatch_divides_rollout": true
+  },
+  "normalization": {
+    "state_normalization": true,
+    "state_dimension": 79,
+    "update_from_training_observations_only": true,
+    "frozen_during_validation": true,
+    "reward_scaling": false,
+    "advantage_normalization": true
+  },
+  "interaction_budget": {
+    "training_episodes_per_update": 54,
+    "decision_transitions_per_update": 6750,
+    "max_updates_per_seed": 200,
+    "training_episodes_per_seed": 10800,
+    "decision_transitions_per_seed": 1350000,
+    "training_episodes_all_five_seeds": 54000,
+    "decision_transitions_all_five_seeds": 6750000,
+    "fairness_rule": "Every learned comparator, including RCWA-RL and any constrained learned baseline, must receive the same maximum environment-training interaction budget per seed. Any extra DSSAT trajectory used to update learned parameters, risk estimators, dual variables or auxiliary trainable modules counts toward this budget.",
+    "validation_not_counted_as_training": true,
+    "validation_candidate_budget_rule": "Every learned comparator uses the same candidate-checkpoint cadence and the same 15-cell validation budget per candidate."
+  },
+  "training": {
+    "seeds": [11, 21, 31, 41, 51],
+    "max_updates": 200,
+    "recovery_checkpoint_interval_updates": 1,
+    "candidate_checkpoint_interval_updates": 10,
+    "validation_interval_updates": 10,
+    "validation_action_mode": "deterministic",
+    "final_test_action_mode": "deterministic",
+    "candidate_checkpoint_count_per_seed": 20,
+    "validation_episodes_per_candidate": 15,
+    "validation_episodes_per_seed": 300,
+    "checkpoint_selection_contract": "awm-learned-method-evaluation-v1",
+    "seed_selection": "forbidden; all five seeds remain independent replicates",
+    "recovery_checkpoint_semantics": "Recovery checkpoints exist only for exact restart and are never eligible for model selection unless the update also lies on the frozen candidate cadence.",
+    "candidate_checkpoint_semantics": "Only updates 10,20,...,200 are scientific checkpoint-selection candidates."
+  },
+  "validation": {
+    "candidate_checkpoint_cells": 15,
+    "weather_eta_cartesian_product": true,
+    "state_normalizer_frozen": true,
+    "gradient_updates": false,
+    "action_mode": "deterministic",
+    "policy_randomness_in_risk_measure": false,
+    "formal_metrics": ["yield_retention", "LCVaR_0.20_by_eta", "total_irrigation_mm", "policy_irrigation_mm", "IRCM_accounting"],
+    "selection": "one checkpoint per training seed using awm-learned-method-evaluation-v1"
+  },
+  "final_test": {
+    "action_mode": "deterministic",
+    "policy_randomness_in_risk_measure": false,
+    "station_years": [2023, 2024, 2025],
+    "locked_until_checkpoint_selection_complete": true
+  },
+  "reproducibility": {
+    "record_at_run_start": [
+      "git_commit",
+      "ppo_protocol_id",
+      "training_seed",
+      "python_version",
+      "torch_version",
+      "cuda_runtime_version",
+      "device_name",
+      "dssat_executable_sha256"
+    ]
+  },
+  "change_rule": "Any change to PPO architecture, reward surrogate, optimizer hyperparameters, scheduler, seeds, normalization, interaction budget, checkpoint cadence or validation/final-test action mode after formal PPO training begins requires a new PPO protocol version."
+}
