@@ -50,10 +50,15 @@
       "0.95": "strict_protection",
       "0.98": "near_full_water_protection"
     },
-    "constraint": "LCVaR_0.20(R_pi) >= eta",
+    "constraint": "LCVaR_0.20(R_pi | eta) >= eta",
     "held_constant_within_episode": true,
     "actor_observation_feature": "yield_target_fraction",
+    "risk_grouping": "Compute the weather-year retention distribution and LCVaR separately for each eta. Never pool episodes from different eta levels into one risk estimate.",
     "training_target_weighting": "uniform_discrete_over_registered_eta_levels",
+    "training_weather_target_cells": 54,
+    "training_pair_weighting": "uniform over the Cartesian product of 18 training weather years and 3 eta levels",
+    "validation_weather_target_cells": 15,
+    "validation_rule": "Evaluate all 5 validation weather years separately at each of the 3 registered eta levels; never choose a favorable eta after seeing outcomes.",
     "primary_reporting": "report every registered eta level separately; do not select a favorable eta after training"
   },
   "split_governance": {
@@ -63,7 +68,7 @@
     "reference_rule": "Development Y_ref values may be precomputed for 2000-2022. Station Y_ref values are generated only during final evaluation after the development lock."
   },
   "feasibility": {
-    "risk_margin": "LCVaR_alpha(R_pi) - eta",
+    "risk_margin": "LCVaR_alpha(R_pi | eta) - eta",
     "feasible_rule": "margin >= 0",
     "statistical_slack": 0.0,
     "note": "Numerical floating-point tolerances in code are not scientific feasibility slack."
@@ -76,5 +81,5 @@
     "learned_policy_results_seen_before_freeze": false,
     "station_final_test_results_seen_before_freeze": false
   },
-  "change_rule": "Any change to Y_ref, alpha, eta levels, weather weighting or finite-sample LCVaR semantics after learned-policy training begins requires a new risk-contract version and cannot overwrite v1."
+  "change_rule": "Any change to Y_ref, alpha, eta levels, eta grouping, weather weighting or finite-sample LCVaR semantics after learned-policy training begins requires a new risk-contract version and cannot overwrite v1."
 }
