@@ -1,0 +1,61 @@
+{
+  "protocol_id": "awm-agricultural-v1",
+  "formal_protocol_locked": true,
+  "template_path": "run/formal/awm_protocol_v1_2000.COX.in",
+  "template_git_blob_sha1": "50815741f507017acf72ccfb7c8a3501d5c9561d",
+  "agronomic_sources": {
+    "site": {
+      "name": "Huaxing Farm, Changji, Xinjiang, China",
+      "coordinates": [44.223, 87.305],
+      "soil_id": "XJHX0001"
+    },
+    "calendar": {
+      "planting_doy": 119,
+      "emergence_doy": 133
+    },
+    "fixed_n": {
+      "repository": "wwwwwwangyuhao/dssat_cultivar_calibration",
+      "path": "data/COX/XJHX2501.COX",
+      "source_git_blob_sha1": "ceeb9837440bdd2cb17ad92f45ec2d79c47a6a56",
+      "treatment": "2025_T1",
+      "total_n_kg_ha": 235.0,
+      "status": "provisional_historical_fixed_N_locked_for_protocol_v1"
+    },
+    "mulch_method": {
+      "PMALB": 0.12,
+      "PMWD": 22.5,
+      "doi": "10.1016/j.agwat.2019.03.041"
+    },
+    "water_reference": {
+      "full_irrigation_m3_mu": 360.0,
+      "conversion_mm_per_m3_mu": 1.5,
+      "B_ref_mm": 540.0,
+      "max_event_m3_mu": 30.0,
+      "max_event_mm": 45.0
+    }
+  },
+  "weather_provenance": {
+    "archive_directory": "provenance/weather/open_meteo_era5_pipeline_legacy/",
+    "recovered_zip_sha256": "db150fda6d2b9f87314ef12584eac6e520ef7fd34f36b17346bd8d4e0714a768",
+    "api_url": "https://archive-api.open-meteo.com/v1/archive",
+    "model": "era5",
+    "training_years": "2000-2017",
+    "validation_years": "2018-2022",
+    "final_station_years": "2023-2025"
+  },
+  "dssat": {
+    "base_version": "4.8.5",
+    "build_label": "lab-dssat-4.8.5-mulch",
+    "executable": "dscsm048",
+    "executable_git_blob_sha1": "37c88710d0518d4e20a02881e884652973f559c3"
+  },
+  "control_semantics": {
+    "irrigation_management_switch": "R",
+    "fertilization_management_switch": "R",
+    "automatic_irrigation_active": false,
+    "automatic_nitrogen_active": false,
+    "policy_irrigation_marker": "{{AWM_IRRIGATION_EVENTS}}",
+    "nonpolicy_irrigation_mm": 0.0
+  },
+  "versioning_rule": "Any change to fixed N, site/calendar/mulch, water constraints or weather split requires a new protocol version."
+}
