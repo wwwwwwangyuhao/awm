@@ -51,7 +51,10 @@ def _validate_budget_accounting(config: Mapping[str, Any]) -> None:
         )
 
 
-def _executed_event_summary(step_audits: tuple[dict[str, object], ...]) -> list[dict[str, object]]:
+def _executed_event_summary(
+    step_audits: tuple[Mapping[str, object], ...],
+) -> list[dict[str, object]]:
+    """Compact event trace preserving desired, constrained and executed water."""
     events: list[dict[str, object]] = []
     for step in step_audits:
         if not bool(step.get("irrigation_event_applied")):
@@ -61,9 +64,26 @@ def _executed_event_summary(step_audits: tuple[dict[str, object], ...]) -> list[
                 "policy_day": int(step["policy_day"]),
                 "action_dap": int(step["decision_action_day"]),
                 "action_yrdoy": str(step["decision_action_yrdoy"]),
+                "baseline_desired_mm": float(step["baseline_desired_mm"]),
+                "baseline_constrained_request_mm": float(
+                    step["baseline_constrained_request_mm"]
+                ),
+                "baseline_constraint_adjusted": bool(
+                    step["baseline_constraint_adjusted"]
+                ),
+                "baseline_constraint_reasons": list(
+                    step.get("baseline_constraint_reasons", ())
+                ),
                 "applied_mm": float(step["applied_irrigation_mm"]),
-                "projected": bool(step.get("water_budget_projected", False)),
-                "projection_reasons": list(step.get("projection_reasons", ())),
+                "adapter_projected": bool(
+                    step.get("irrigation_action_projected", False)
+                ),
+                "adapter_quantized": bool(
+                    step.get("irrigation_execution_quantized", False)
+                ),
+                "adapter_projection_reasons": list(
+                    step.get("irrigation_projection_reasons", ())
+                ),
             }
         )
     return events
@@ -221,6 +241,10 @@ def run_real_baseline(
             "total_seasonal_budget_mm": float(total_budget) if total_budget is not None else None,
             "policy_budget_mm": float(config["seasonal_budget_mm"]),
             "nonpolicy_irrigation_mm": float(config["nonpolicy_irrigation_mm"]),
+            "baseline_desired_event_count": result.desired_event_count,
+            "hierarchical_requested_event_count": result.requested_event_count,
+            "baseline_constraint_adjusted_event_count": result.baseline_constraint_adjusted_event_count,
+            "adapter_projected_event_count": result.projected_event_count,
             "executed_events": executed_events,
             "step_audits": list(result.step_audits),
             "terminal_info": dict(result.terminal_info),
@@ -248,9 +272,11 @@ def run_real_baseline(
             "IRCM_mm": result.dssat_ircm_mm,
             "policy_irrigation_mm": result.policy_irrigation_mm,
             "IWP_kg_m3": result.irrigation_water_productivity_kg_m3,
-            "irrigation_event_count": result.irrigation_event_count,
+            "baseline_desired_event_count": result.desired_event_count,
             "requested_event_count": result.requested_event_count,
+            "baseline_constraint_adjusted_event_count": result.baseline_constraint_adjusted_event_count,
             "projected_event_count": result.projected_event_count,
+            "irrigation_event_count": result.irrigation_event_count,
             "executed_events": executed_events,
             "irrigation_accounting_passed": result.irrigation_accounting_passed,
             "audit_output": str(Path(audit_output).resolve()) if audit_output else None,
