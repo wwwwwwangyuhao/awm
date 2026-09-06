@@ -1,0 +1,47 @@
+*COTTON CULTIVAR COEFFICIENTS: CRGRO048 MODEL
+!
+! COEFF   DEFINITIONS
+! =====   ===========
+! EXPNO   Number of experiments used to estimate cultivar parameters
+! ECO#    Code for the ecotype to which this cultivar belongs (see *.eco file)
+! CSDL    Critical Short Day Length below which reproductive development
+!         progresses with no daylength effect (for shortday plants) (hour)
+! PPSEN   Slope of the relative response of development to photoperiod with time
+!         (positive for shortday plants) (1/hour)
+! EM-FL   Time between plant emergence and flower appearance (R1)
+!         (photothermal days)
+! FL-SH   Time between first flower and first pod (R3) (photothermal days)
+! FL-SD   Time between first flower and first seed (R5) (photothermal days)
+! SD-PM   Time between first seed (R5) and physiological maturity (R7)
+!         (photothermal days)
+! FL-LF   Time between first flower (R1) and end of leaf expansion
+!         (photothermal days)
+! LFMAX   Maximum leaf photosynthesis rate at 30 C, 350 vpm CO2, and high light
+!         (mg CO2/m2-s)---from Reddy Adv. Agron. 1997?
+! SLAVR   Specific leaf area of cultivar under standard growth conditions
+!         (cm2/g)
+! SIZLF   Maximum size of full leaf (three leaflets) (cm2)
+! XFRT    Maximum fraction of daily growth that is partitioned to seed + shell
+! WTPSD   Maximum weight per seed (g)
+! SFDUR   Seed filling duration for pod cohort at standard growth conditions
+!         (photothermal days)
+! SDPDV   Average seed per pod under standard growing conditions (#/pod)
+! PODUR   Time required for cultivar to reach final pod load under optimal
+!         conditions (photothermal days)
+! THRSH   Threshing percentage. The maximum ratio of (seed/(seed+shell))
+!         at maturity. Causes seeds to stop growing as their dry weight
+!         increases until the shells are filled in a cohort.
+! SDPRO   Fraction protein in seeds (g(protein)/g(seed))
+! SDLIP   Fraction oil in seeds (g(oil)/g(seed))
+!
+!Of all these cultivars, only Deltapine 77 (2) and Deltapine 555 (6 to 7) were calibrated with growth analyses data
+!Delapine 555 really may be the same cultivar as Deltapine 555 BG/RR, but I don't know the background.
+!Rest are rather flimsey calibrations from yield (seed cotton = seed plus lint).  GP 3774 from LAI and RLD only
+!
+!             P/G/N:Phenology/Growth/Not used for calbration
+!
+@VAR#  VRNAME.......... EXPNO   ECO#  CSDL PPSEN EM-FL FL-SH FL-SD SD-PM FL-LF LFMAX SLAVR SIZLF  XFRT WTPSD SFDUR SDPDV PODUR THRSH SDPRO SDLIP
+!Coefficient #                           1     2     3     4     5     6     7     8     9    10    11    12    13    14    15    16    17    18
+!Calibration                             P     N     P     P     P     P     P     N     G     G     N     N     G     G     G     N     N     N
+
+IB0007 ZM 113 XJ/HX         6 CO0005 23.00  0.01 45.95  9.90 12.26 46.85 60.17  1.10 194.6 233.0  0.98  0.17 24.22 21.00  5.65 77.36  0.15  0.12
