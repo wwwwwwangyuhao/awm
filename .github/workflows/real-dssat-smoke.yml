@@ -65,18 +65,27 @@ jobs:
         run: |
           python -m awm.dssat.smoke \
             --config configs/formal_reset_smoke_protocol_v1_2000.json
-      - name: Real formal W100 conventional baseline smoke
+      - name: Real formal W100 agricultural baseline smokes
         run: |
-          python -m awm.baselines.smoke \
-            --config configs/formal_baseline_conventional_w100_2000.json \
-            --audit-output /tmp/awm_conventional_w100_2000.audit.json
-      - name: Real formal W100 potential-ET baseline smoke
+          for method in conventional et rew; do
+            echo "===== ${method} W100 ====="
+            python -m awm.baselines.smoke \
+              --config "configs/formal_baseline_${method}_w100_2000.json" \
+              --audit-output "/tmp/awm_${method}_w100_2000.audit.json"
+          done
+      - name: Real formal W80 agricultural baseline smokes
         run: |
-          python -m awm.baselines.smoke \
-            --config configs/formal_baseline_et_w100_2000.json \
-            --audit-output /tmp/awm_et_w100_2000.audit.json
-      - name: Real formal W100 REW baseline smoke
+          for method in conventional et rew; do
+            echo "===== ${method} W80 ====="
+            python -m awm.baselines.smoke \
+              --config "configs/formal_baseline_${method}_w80_2000.json" \
+              --audit-output "/tmp/awm_${method}_w80_2000.audit.json"
+          done
+      - name: Real formal W60 agricultural baseline smokes
         run: |
-          python -m awm.baselines.smoke \
-            --config configs/formal_baseline_rew_w100_2000.json \
-            --audit-output /tmp/awm_rew_w100_2000.audit.json
+          for method in conventional et rew; do
+            echo "===== ${method} W60 ====="
+            python -m awm.baselines.smoke \
+              --config "configs/formal_baseline_${method}_w60_2000.json" \
+              --audit-output "/tmp/awm_${method}_w60_2000.audit.json"
+          done
