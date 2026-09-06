@@ -19,6 +19,9 @@ import math
 from typing import Protocol, runtime_checkable
 
 
+DSSAT_SUMMARY_IRCM_RESOLUTION_MM = 1.0
+
+
 class IrrigationSpecLike(Protocol):
     min_event_mm: float
 
@@ -182,13 +185,22 @@ class IrrigationStepAudit:
 
 @dataclass(frozen=True, slots=True)
 class TerminalIrrigationAudit:
-    """Terminal reconciliation between controller accounting and DSSAT IRCM."""
+    """Terminal reconciliation between exact ledger and Summary.OUT IRCM.
+
+    ``expected_ircm_mm`` and ``difference_mm`` remain in the exact management
+    ledger domain. DSSAT 4.8.5 ``Summary.OUT`` reports ``IRCM`` at integer-mm
+    resolution, so pass/fail is evaluated in that reporting domain using
+    ``expected_summary_ircm_mm`` and ``summary_difference_mm``.
+    """
 
     dssat_ircm_mm: float
     policy_irrigation_mm: float
     nonpolicy_irrigation_mm: float
     expected_ircm_mm: float
+    expected_summary_ircm_mm: float
     difference_mm: float
+    summary_difference_mm: float
+    summary_reporting_resolution_mm: float
     tolerance_mm: float
     passed: bool
 
@@ -315,9 +327,12 @@ class DSSATIrrigationAdapter:
     ) -> TerminalIrrigationAudit:
         """Reconcile seasonal irrigation after termination only.
 
-        ``dssat_ircm_mm`` must come from terminal Summary.OUT. Calling code is
-        responsible for ensuring that no seasonal summary field is exposed to
-        the policy before termination.
+        ``dssat_ircm_mm`` must come from terminal ``Summary.OUT``. The exact
+        controller/COX ledger is preserved for audit, but Summary.OUT's IRCM
+        field reports at 1-mm resolution. Empirical real-DSSAT probes confirm
+        ROUND_HALF_UP behavior, including 74.5 -> 75. Pass/fail therefore
+        compares the Summary value against the exact expected total transformed
+        into the same reporting domain; the configured tolerance is not widened.
         """
 
         if self._faulted:
@@ -325,14 +340,19 @@ class DSSATIrrigationAdapter:
         _require_nonnegative("dssat_ircm_mm", dssat_ircm_mm)
         policy_mm = float(self.controller.used_mm)
         expected = self.nonpolicy_irrigation_mm + policy_mm
-        difference = float(dssat_ircm_mm) - expected
-        passed = abs(difference) <= self.summary_tolerance_mm
+        expected_summary = _quantize_summary_ircm(expected)
+        exact_difference = float(dssat_ircm_mm) - expected
+        summary_difference = float(dssat_ircm_mm) - expected_summary
+        passed = abs(summary_difference) <= self.summary_tolerance_mm
         audit = TerminalIrrigationAudit(
             dssat_ircm_mm=float(dssat_ircm_mm),
             policy_irrigation_mm=policy_mm,
             nonpolicy_irrigation_mm=self.nonpolicy_irrigation_mm,
             expected_ircm_mm=expected,
-            difference_mm=difference,
+            expected_summary_ircm_mm=expected_summary,
+            difference_mm=exact_difference,
+            summary_difference_mm=summary_difference,
+            summary_reporting_resolution_mm=DSSAT_SUMMARY_IRCM_RESOLUTION_MM,
             tolerance_mm=self.summary_tolerance_mm,
             passed=passed,
         )
@@ -340,8 +360,10 @@ class DSSATIrrigationAdapter:
             raise RuntimeError(
                 "DSSAT seasonal irrigation audit failed: "
                 f"IRCM={audit.dssat_ircm_mm:.6f}, "
-                f"expected={audit.expected_ircm_mm:.6f}, "
-                f"difference={audit.difference_mm:.6f}, "
+                f"exact_expected={audit.expected_ircm_mm:.6f}, "
+                f"summary_expected={audit.expected_summary_ircm_mm:.6f}, "
+                f"exact_difference={audit.difference_mm:.6f}, "
+                f"summary_difference={audit.summary_difference_mm:.6f}, "
                 f"tolerance={audit.tolerance_mm:.6f}"
             )
         return audit
@@ -390,6 +412,16 @@ class DSSATIrrigationAdapter:
         if quantized:
             reasons.append("execution_resolution_quantized")
         return float(canonical_fraction), quantized, tuple(reasons)
+
+
+def _quantize_summary_ircm(value: float) -> float:
+    """Map exact seasonal irrigation to Summary.OUT's integer-mm IRCM domain."""
+
+    _require_nonnegative("summary expected irrigation", value)
+    q = Decimal(str(DSSAT_SUMMARY_IRCM_RESOLUTION_MM))
+    value_d = Decimal(str(value))
+    units = (value_d / q).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return float(units * q)
 
 
 def _quantize_amount(
@@ -449,6 +481,7 @@ __all__ = [
     "DSSATDecisionCalendar",
     "DSSATIrrigationAdapter",
     "DSSATIrrigationBackend",
+    "DSSAT_SUMMARY_IRCM_RESOLUTION_MM",
     "IrrigationStepAudit",
     "TerminalIrrigationAudit",
 ]
