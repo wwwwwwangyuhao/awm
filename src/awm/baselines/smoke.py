@@ -51,6 +51,24 @@ def _validate_budget_accounting(config: Mapping[str, Any]) -> None:
         )
 
 
+def _executed_event_summary(step_audits: tuple[dict[str, object], ...]) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for step in step_audits:
+        if not bool(step.get("irrigation_event_applied")):
+            continue
+        events.append(
+            {
+                "policy_day": int(step["policy_day"]),
+                "action_dap": int(step["decision_action_day"]),
+                "action_yrdoy": str(step["decision_action_yrdoy"]),
+                "applied_mm": float(step["applied_irrigation_mm"]),
+                "projected": bool(step.get("water_budget_projected", False)),
+                "projection_reasons": list(step.get("projection_reasons", ())),
+            }
+        )
+    return events
+
+
 def build_baseline(spec: Mapping[str, Any]) -> AgriculturalBaseline:
     _require(spec, "type")
     kind = str(spec["type"]).strip().lower()
@@ -190,6 +208,7 @@ def run_real_baseline(
             raise TypeError("baseline must be a JSON object")
         policy = build_baseline(baseline_spec)
         result = run_baseline_episode(env, policy)
+        executed_events = _executed_event_summary(result.step_audits)
 
         total_budget = config.get("total_seasonal_budget_mm")
         audit_payload = {
@@ -202,6 +221,7 @@ def run_real_baseline(
             "total_seasonal_budget_mm": float(total_budget) if total_budget is not None else None,
             "policy_budget_mm": float(config["seasonal_budget_mm"]),
             "nonpolicy_irrigation_mm": float(config["nonpolicy_irrigation_mm"]),
+            "executed_events": executed_events,
             "step_audits": list(result.step_audits),
             "terminal_info": dict(result.terminal_info),
         }
@@ -231,6 +251,7 @@ def run_real_baseline(
             "irrigation_event_count": result.irrigation_event_count,
             "requested_event_count": result.requested_event_count,
             "projected_event_count": result.projected_event_count,
+            "executed_events": executed_events,
             "irrigation_accounting_passed": result.irrigation_accounting_passed,
             "audit_output": str(Path(audit_output).resolve()) if audit_output else None,
             "output_reader_metrics": reader.metrics,
