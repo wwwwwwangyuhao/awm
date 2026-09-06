@@ -2,7 +2,7 @@
   "protocol_id": "awm-agricultural-v1",
   "formal_protocol_locked": true,
   "template_path": "run/formal/awm_protocol_v1_2000.COX.in",
-  "template_git_blob_sha1": "50815741f507017acf72ccfb7c8a3501d5c9561d",
+  "template_git_blob_sha1": "064f3491d8e53f952f618019e5b0eb2c7698c511",
   "agronomic_sources": {
     "site": {
       "name": "Huaxing Farm, Changji, Xinjiang, China",
@@ -21,6 +21,18 @@
       "total_n_kg_ha": 235.0,
       "status": "provisional_historical_fixed_N_locked_for_protocol_v1"
     },
+    "fixed_preplant_irrigation": {
+      "mm": 45.0,
+      "m3_mu": 30.0,
+      "relative_timing_days_before_planting": 3,
+      "formal_doy": 116,
+      "source_records": [
+        "wwwwwwangyuhao/dssat_cultivar_calibration:data/COX/XJHX2301.COX",
+        "wwwwwwangyuhao/dssat_cultivar_calibration:data/COX/XJHX2401.COX",
+        "wwwwwwangyuhao/dssat_cultivar_calibration:data/COX/XJHX2501.COX"
+      ],
+      "source_semantics": "each field COX contains a 30 m3/mu (45 mm) irrigation exactly three days before planting"
+    },
     "mulch_method": {
       "PMALB": 0.12,
       "PMWD": 22.5,
@@ -29,7 +41,11 @@
     "water_reference": {
       "full_irrigation_m3_mu": 360.0,
       "conversion_mm_per_m3_mu": 1.5,
-      "B_ref_mm": 540.0,
+      "B_ref_total_mm": 540.0,
+      "fixed_preplant_mm": 45.0,
+      "W100_policy_postplant_mm": 495.0,
+      "W80_policy_postplant_mm": 387.0,
+      "W60_policy_postplant_mm": 279.0,
       "max_event_m3_mu": 30.0,
       "max_event_mm": 45.0
     }
@@ -55,7 +71,8 @@
     "automatic_irrigation_active": false,
     "automatic_nitrogen_active": false,
     "policy_irrigation_marker": "{{AWM_IRRIGATION_EVENTS}}",
-    "nonpolicy_irrigation_mm": 0.0
+    "nonpolicy_irrigation_mm": 45.0,
+    "ircm_accounting": "45 mm fixed preplant + executed postplant policy irrigation"
   },
-  "versioning_rule": "Any change to fixed N, site/calendar/mulch, water constraints or weather split requires a new protocol version."
+  "versioning_rule": "Any change to fixed N, fixed preplant irrigation, site/calendar/mulch, water constraints or weather split requires a new protocol version."
 }
