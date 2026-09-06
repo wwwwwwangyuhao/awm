@@ -174,22 +174,27 @@ def collect_balanced_training_rollout(
     # The normalizer is intentionally frozen while this policy version acts.
     for cell in cells:
         env = env_factory(cell)
-        reward = PPOEpisodeReward(
-            weather_year=cell.weather_year,
-            eta=cell.eta,
-            reference_yield_by_year=reference_yield_by_year,
-        )
-        outcomes.append(
-            collect_episode(
-                env,
-                cell=cell,
-                agent=agent,
-                normalizer=normalizer,
-                reward_tracker=reward,
-                buffer=buffer,
-                raw_observation_sink=raw_observations,
+        try:
+            reward = PPOEpisodeReward(
+                weather_year=cell.weather_year,
+                eta=cell.eta,
+                reference_yield_by_year=reference_yield_by_year,
             )
-        )
+            outcomes.append(
+                collect_episode(
+                    env,
+                    cell=cell,
+                    agent=agent,
+                    normalizer=normalizer,
+                    reward_tracker=reward,
+                    buffer=buffer,
+                    raw_observation_sink=raw_observations,
+                )
+            )
+        finally:
+            close = getattr(env, "close", None)
+            if callable(close):
+                close()
     batch = buffer.finalize()
     # Statistics from this rollout become available only to the next rollout.
     normalizer.update(np.stack(raw_observations))
