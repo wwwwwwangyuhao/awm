@@ -43,17 +43,30 @@ def test_protocol_v1_site_calendar_mulch_and_water_are_locked():
     water = protocol["irrigation"]
     assert water["automatic_irrigation_enabled"] is False
     assert water["management_switch"] == "R"
-    assert water["B_ref_mm"] == 540.0
-    assert water["water_budget_treatments_mm"] == {
+    assert water["B_ref_total_mm"] == 540.0
+    assert water["fixed_preplant_irrigation"] == {
+        "timing": "3 days before planting",
+        "formal_doy": 116,
+        "m3_mu": 30.0,
+        "mm": 45.0,
+        "policy_controllable": False,
+        "source_basis": "present at 30 m3/mu three days before planting in the 2023, 2024 and 2025 Huaxing field COX records",
+    }
+    assert water["total_water_budget_treatments_mm"] == {
         "W100": 540.0,
         "W80": 432.0,
         "W60": 324.0,
+    }
+    assert water["policy_water_budget_treatments_mm"] == {
+        "W100": 495.0,
+        "W80": 387.0,
+        "W60": 279.0,
     }
     assert water["max_event_mm"] == 45.0
     assert water["min_positive_execution_mm"] == 0.1
     assert water["execution_resolution_mm"] == 0.1
     assert water["min_interval_days"] == 0
-    assert water["nonpolicy_irrigation_mm"] == 0.0
+    assert water["nonpolicy_irrigation_mm"] == 45.0
     assert water["ircm_tolerance_mm"] == 0.1
 
 
@@ -103,15 +116,21 @@ def test_weather_split_is_disjoint_and_station_only_for_final_test():
     assert weather["era5_2023_2025_policy"].startswith("noncanonical")
 
 
-def test_formal_cox_is_protocol_ready_and_has_no_legacy_site_metadata():
-    report = audit_cox_template(COX)
+def test_formal_cox_is_protocol_ready_and_has_fixed_preplant_water():
+    report = audit_cox_template(
+        COX,
+        expected_nonpolicy_irrigation_mm=45.0,
+        irrigation_tolerance_mm=0.1,
+    )
     text = COX.read_text(encoding="utf-8")
 
     assert report["structural_status"] == "passed"
     assert report["protocol_ready"] is True
     assert report["review_flags"] == []
     assert report["marker_count"] == 1
-    assert report["explicit_irrigation_rows"] == []
+    assert report["explicit_irrigation_rows"] == [" 1 00116 IR005 45.00"]
+    assert report["explicit_nonpolicy_irrigation_total_mm"] == 45.0
+    assert report["expected_nonpolicy_irrigation_mm"] == 45.0
     assert report["explicit_fertilizer_n_total_kg_ha"] == 235.0
     assert report["management_switches"]["irrigation"] == "R"
     assert report["management_switches"]["fertilization"] == "R"
@@ -126,7 +145,7 @@ def test_formal_cox_is_protocol_ready_and_has_no_legacy_site_metadata():
     assert " 1 CO IB0007 IB0007_CALIBRATED" in text
     assert " 1  0.12  22.5" in text
     assert " 1 00119 00133" in text
-    assert " IR005 " not in f" {text} "
+    assert text.count("IR005") == 1
 
 
 def test_formal_cox_preserves_initial_water_and_n_profile():
@@ -147,7 +166,7 @@ def test_formal_cox_preserves_initial_water_and_n_profile():
         assert row in text
 
 
-def test_formal_reset_config_is_portable_and_locked():
+def test_formal_reset_config_is_portable_locked_and_accounts_for_preplant_water():
     config = json.loads(RESET_CONFIG.read_text(encoding="utf-8"))
 
     assert config["status"] == "formal_agricultural_protocol_v1_reset_smoke"
@@ -157,6 +176,8 @@ def test_formal_reset_config_is_portable_and_locked():
     assert config["weather_source"] == "era5"
     assert config["weather_filename"] == "XJHX0001.WTH"
     assert config["plant_yrdoy"] == "00119"
+    assert config["nonpolicy_irrigation_mm"] == 45.0
+    assert config["ircm_tolerance_mm"] == 0.1
     assert tuple(config["daily_out_names"]) == CANONICAL_DAILY_OUT_NAMES
 
     forbidden = {
