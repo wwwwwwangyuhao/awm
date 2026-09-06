@@ -29,14 +29,14 @@ def test_engineering_cox_is_structurally_valid_but_not_protocol_ready():
         in flags
     )
     assert "explicit_fertilizer_n_total_is_zero" in flags
-    assert (
-        "automatic_irrigation_settings_present_verify_management_control_semantics"
-        in flags
-    )
-    assert (
-        "automatic_nitrogen_settings_present_verify_management_control_semantics"
-        in flags
-    )
+
+    # DSSAT SIMULATION.CDE defines IRRIG=R and FERTI=R as reported-date
+    # management.  The automatic-parameter tables are therefore inert; their
+    # mere presence is no longer treated as an agronomic blocker.
+    assert report["management_switches"]["irrigation"] == "R"
+    assert report["management_switches"]["fertilization"] == "R"
+    assert report["automatic_irrigation_active"] is False
+    assert report["automatic_nitrogen_active"] is False
 
 
 def test_engineering_cox_preserves_v3_candidate_parameters():
