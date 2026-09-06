@@ -25,7 +25,7 @@ def test_year_2000_materialization_is_exact_identity():
     assert result.station_id == "XJHX0001"
     assert result.weather_filename == "XJHX0001.WTH"
     assert result.plant_yrdoy == "00119"
-    assert result.date_token_count == 18
+    assert result.date_token_count == 19
     assert result.field_wsta_replacement_count == 1
     assert result.note_replacement_count == 1
     assert result.label_year_replacement_count == 2
@@ -64,7 +64,7 @@ def test_materialization_preserves_all_source_management_doys():
     source_dates = re.findall(r"(?<!\d)00(\d{3})(?!\d)", source)
     target_dates = re.findall(r"(?<!\d)22(\d{3})(?!\d)", target)
     assert target_dates == source_dates
-    assert len(target_dates) == 18
+    assert len(target_dates) == 19
 
 
 def test_development_years_exclude_locked_2023_2025_final_test():
