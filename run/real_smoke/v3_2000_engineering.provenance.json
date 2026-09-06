@@ -21,7 +21,7 @@
     "plant_yrdoy": "00119",
     "emergence_yrdoy": "00133",
     "mulch_albedo_PMALB": 0.12,
-    "mulch_width_PM​​WD_cm": 22.5,
+    "mulch_width_PMWD_cm": 22.5,
     "policy_irrigation_rows": 0,
     "irrigation_marker": "{{AWM_IRRIGATION_EVENTS}}"
   },
