@@ -1,4 +1,4 @@
-"""Run one full agricultural baseline episode on a real DSSAT worker."""
+"""Run one full agricultural baseline episode on a real hashed DSSAT worker."""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +10,8 @@ from awm.dssat.backend import DSSATWorkerBackend, DSSATWorkerPaths
 from awm.dssat.management import DSSATExperimentRenderer
 from awm.dssat.output_reader import CachedDSSATOutputReader
 from awm.dssat.runner import DSSATRunner
+from awm.dssat.runtime_paths import WorkspaceRootLock
+from awm.dssat.smoke_runtime import prepare_hashed_smoke_worker, resolve_project_root
 from awm.dssat.workspace import validate_dssatpro_record_width
 from awm.envs.cotton_water_env import CottonWaterEnv
 from awm.envs.dssat_irrigation import DSSATDecisionCalendar, DSSATIrrigationAdapter
@@ -76,17 +78,15 @@ def run_real_baseline(
     config_path: str,
     *,
     audit_output: str | None = None,
+    project_root: str | None = None,
+    runtime_base: str | None = None,
 ) -> dict[str, object]:
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
     _require(
         config,
-        "workspace",
-        "dssat_exec",
-        "output_dir",
         "cox_template",
-        "rendered_cox",
-        "summary_out",
-        "daily_out_files",
+        "weather_source",
+        "weather_filename",
         "plant_yrdoy",
         "seasonal_budget_mm",
         "min_event_mm",
@@ -100,109 +100,138 @@ def run_real_baseline(
         "baseline",
     )
 
-    validate_dssatpro_record_width(config["workspace"])
-    renderer = DSSATExperimentRenderer(
-        template_path=config["cox_template"],
-        output_cox_path=config["rendered_cox"],
-    )
-    runner = DSSATRunner(
-        dssat_exec=config["dssat_exec"],
-        output_dir=config["output_dir"],
-        cox_path=config["rendered_cox"],
-        weather_file=config.get("weather_file"),
-        soil_file=config.get("soil_file"),
-        timeout_seconds=float(config.get("timeout_seconds", 1800.0)),
-    )
-    reader = CachedDSSATOutputReader(
-        summary_out=config["summary_out"],
-        out_files=list(config["daily_out_files"]),
-        str_fields=config.get("str_fields"),
-        date_fields=config.get("date_fields"),
-    )
-    backend = DSSATWorkerBackend(
-        renderer=renderer,
-        runner=runner,
-        reader=reader,
-        paths=DSSATWorkerPaths(
-            workspace=config["workspace"],
-            summary_out=config["summary_out"],
-            daily_out_files=tuple(config["daily_out_files"]),
-            episode_artifacts=tuple(config.get("episode_artifacts", ())),
-        ),
-    )
-
-    water_spec = IrrigationSystemSpec(
-        seasonal_budget_mm=float(config["seasonal_budget_mm"]),
-        min_event_mm=float(config["min_event_mm"]),
-        max_event_mm=float(config["max_event_mm"]),
-        min_interval_days=int(config["min_interval_days"]),
-        horizon_days=int(config["horizon_days"]),
-    )
-    controller = WaterBudgetController(water_spec)
-    calendar = DSSATDecisionCalendar.from_yrdoy(
-        str(config["plant_yrdoy"]),
-        horizon_days=int(config["horizon_days"]),
-    )
-    adapter = DSSATIrrigationAdapter(
-        controller=controller,
-        backend=backend,
-        calendar=calendar,
-        execution_resolution_mm=float(config["execution_resolution_mm"]),
-        nonpolicy_irrigation_mm=float(config["nonpolicy_irrigation_mm"]),
-        summary_tolerance_mm=float(config["ircm_tolerance_mm"]),
-    )
-    env = CottonWaterEnv(
-        backend=backend,
-        adapter=adapter,
-        plant_yrdoy=str(config["plant_yrdoy"]),
-        yield_target_fraction=float(config["yield_target_fraction"]),
-    )
-    baseline_spec = config["baseline"]
-    if not isinstance(baseline_spec, Mapping):
-        raise TypeError("baseline must be a JSON object")
-    policy = build_baseline(baseline_spec)
-    result = run_baseline_episode(env, policy)
-
-    audit_payload = {
-        "baseline_name": result.baseline_name,
-        "config_path": str(Path(config_path).resolve()),
-        "step_audits": list(result.step_audits),
-        "terminal_info": dict(result.terminal_info),
-    }
-    if audit_output:
-        destination = Path(audit_output)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(
-            json.dumps(audit_payload, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
+    root = resolve_project_root(config_path, project_root)
+    with WorkspaceRootLock(project_root=root, runtime_base=runtime_base):
+        worker = prepare_hashed_smoke_worker(
+            config_path,
+            config,
+            project_root=root,
+            runtime_base=runtime_base,
+        )
+        validate_dssatpro_record_width(worker.workspace)
+        renderer = DSSATExperimentRenderer(
+            template_path=str(worker.cox_template),
+            output_cox_path=str(worker.rendered_cox),
+        )
+        runner = DSSATRunner(
+            dssat_exec=str(worker.dssat_exec),
+            output_dir=str(worker.workspace),
+            cox_path=str(worker.rendered_cox),
+            weather_file=str(worker.weather_file),
+            soil_file=str(worker.soil_file),
+            timeout_seconds=float(config.get("timeout_seconds", 1800.0)),
+        )
+        reader = CachedDSSATOutputReader(
+            summary_out=str(worker.summary_out),
+            out_files=[str(path) for path in worker.daily_out_files],
+            str_fields=config.get("str_fields"),
+            date_fields=config.get("date_fields"),
+        )
+        backend = DSSATWorkerBackend(
+            renderer=renderer,
+            runner=runner,
+            reader=reader,
+            paths=DSSATWorkerPaths(
+                workspace=str(worker.workspace),
+                summary_out=str(worker.summary_out),
+                daily_out_files=tuple(str(path) for path in worker.daily_out_files),
+                episode_artifacts=tuple(str(path) for path in worker.episode_artifacts),
+            ),
         )
 
-    return {
-        "status": "passed",
-        "baseline_name": result.baseline_name,
-        "HWAM_kg_ha": result.yield_hwam_kg_ha,
-        "IRCM_mm": result.dssat_ircm_mm,
-        "policy_irrigation_mm": result.policy_irrigation_mm,
-        "IWP_kg_m3": result.irrigation_water_productivity_kg_m3,
-        "irrigation_event_count": result.irrigation_event_count,
-        "requested_event_count": result.requested_event_count,
-        "projected_event_count": result.projected_event_count,
-        "irrigation_accounting_passed": result.irrigation_accounting_passed,
-        "audit_output": str(Path(audit_output).resolve()) if audit_output else None,
-        "output_reader_metrics": reader.metrics,
-    }
+        water_spec = IrrigationSystemSpec(
+            seasonal_budget_mm=float(config["seasonal_budget_mm"]),
+            min_event_mm=float(config["min_event_mm"]),
+            max_event_mm=float(config["max_event_mm"]),
+            min_interval_days=int(config["min_interval_days"]),
+            horizon_days=int(config["horizon_days"]),
+        )
+        controller = WaterBudgetController(water_spec)
+        calendar = DSSATDecisionCalendar.from_yrdoy(
+            str(config["plant_yrdoy"]),
+            horizon_days=int(config["horizon_days"]),
+        )
+        adapter = DSSATIrrigationAdapter(
+            controller=controller,
+            backend=backend,
+            calendar=calendar,
+            execution_resolution_mm=float(config["execution_resolution_mm"]),
+            nonpolicy_irrigation_mm=float(config["nonpolicy_irrigation_mm"]),
+            summary_tolerance_mm=float(config["ircm_tolerance_mm"]),
+        )
+        env = CottonWaterEnv(
+            backend=backend,
+            adapter=adapter,
+            plant_yrdoy=str(config["plant_yrdoy"]),
+            yield_target_fraction=float(config["yield_target_fraction"]),
+        )
+        baseline_spec = config["baseline"]
+        if not isinstance(baseline_spec, Mapping):
+            raise TypeError("baseline must be a JSON object")
+        policy = build_baseline(baseline_spec)
+        result = run_baseline_episode(env, policy)
+
+        audit_payload = {
+            "baseline_name": result.baseline_name,
+            "config_path": str(Path(config_path).resolve()),
+            "runtime_family": "awm",
+            "runtime_id": worker.runtime_id,
+            "runtime_root": str(worker.runtime_root),
+            "workspace": str(worker.workspace),
+            "step_audits": list(result.step_audits),
+            "terminal_info": dict(result.terminal_info),
+        }
+        if audit_output:
+            destination = Path(audit_output)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(
+                json.dumps(audit_payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+        return {
+            "status": "passed",
+            "runtime_family": "awm",
+            "runtime_id": worker.runtime_id,
+            "runtime_root": str(worker.runtime_root),
+            "workspace": str(worker.workspace),
+            "baseline_name": result.baseline_name,
+            "HWAM_kg_ha": result.yield_hwam_kg_ha,
+            "IRCM_mm": result.dssat_ircm_mm,
+            "policy_irrigation_mm": result.policy_irrigation_mm,
+            "IWP_kg_m3": result.irrigation_water_productivity_kg_m3,
+            "irrigation_event_count": result.irrigation_event_count,
+            "requested_event_count": result.requested_event_count,
+            "projected_event_count": result.projected_event_count,
+            "irrigation_accounting_passed": result.irrigation_accounting_passed,
+            "audit_output": str(Path(audit_output).resolve()) if audit_output else None,
+            "output_reader_metrics": reader.metrics,
+        }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run one full AWM agricultural baseline on a real DSSAT worker"
+        description="Run one full AWM agricultural baseline in the hashed DSSAT runtime"
     )
     parser.add_argument("--config", required=True)
     parser.add_argument("--audit-output")
+    parser.add_argument(
+        "--project-root",
+        help="AWM checkout root; normally discovered from the config path",
+    )
+    parser.add_argument(
+        "--runtime-base",
+        help="Optional override; default is ~/.dssat_rt/awm",
+    )
     args = parser.parse_args()
     print(
         json.dumps(
-            run_real_baseline(args.config, audit_output=args.audit_output),
+            run_real_baseline(
+                args.config,
+                audit_output=args.audit_output,
+                project_root=args.project_root,
+                runtime_base=args.runtime_base,
+            ),
             ensure_ascii=False,
             indent=2,
         )
