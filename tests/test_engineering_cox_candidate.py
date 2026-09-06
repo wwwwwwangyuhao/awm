@@ -5,6 +5,7 @@ from pathlib import Path
 
 from awm.dssat.cox_audit import audit_cox_template
 from awm.dssat.management import IRRIGATION_MARKER
+from awm.dssat.smoke import _agronomic_review_required
 from awm.dssat.smoke_runtime import CANONICAL_DAILY_OUT_NAMES
 
 
@@ -54,6 +55,7 @@ def test_engineering_reset_config_is_portable_and_uses_canonical_inventory():
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
 
     assert config["status"] == "engineering_smoke_only_not_formal_protocol"
+    assert config["formal_protocol_locked"] is False
     assert config["cox_template"] == "run/real_smoke/v3_2000_engineering.COX.in"
     assert config["weather_source"] == "era5"
     assert config["weather_filename"] == "XJHX0001.WTH"
@@ -72,7 +74,14 @@ def test_engineering_reset_config_is_portable_and_uses_canonical_inventory():
 
 
 def test_engineering_candidate_references_assets_vendored_in_awm():
-    assert (ROOT / "dssat_workspace_template" / "data" / "wth" / "era5" / "XJHX0001.WTH").is_file()
+    assert (
+        ROOT
+        / "dssat_workspace_template"
+        / "data"
+        / "wth"
+        / "era5"
+        / "XJHX0001.WTH"
+    ).is_file()
 
     soil = (
         ROOT
@@ -99,3 +108,27 @@ def test_provenance_explicitly_blocks_formal_use():
     assert provenance["source"]["commit"] == "d56336e09fdb9a9aea60ae61eaa892833314ab33"
     assert provenance["engineering_instantiation"]["weather_year"] == 2000
     assert len(provenance["known_review_blockers"]) >= 4
+
+
+def test_agronomic_review_is_not_cleared_by_zero_ircm_alone():
+    assert (
+        _agronomic_review_required(
+            formal_protocol_locked=False,
+            nonpolicy_irrigation_detected=False,
+        )
+        is True
+    )
+    assert (
+        _agronomic_review_required(
+            formal_protocol_locked=True,
+            nonpolicy_irrigation_detected=True,
+        )
+        is True
+    )
+    assert (
+        _agronomic_review_required(
+            formal_protocol_locked=True,
+            nonpolicy_irrigation_detected=False,
+        )
+        is False
+    )
