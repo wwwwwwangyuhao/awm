@@ -1,0 +1,72 @@
+{
+  "evaluation_contract_id": "awm-learned-method-evaluation-v1",
+  "status": "locked_before_ppo_training_and_before_station_final_test",
+  "risk_contract_id": "awm-risk-contract-v1",
+  "selection_scope": {
+    "unit": "one training seed",
+    "single_checkpoint_per_seed": true,
+    "single_checkpoint_shared_across_eta_levels": true,
+    "seed_is_not_a_selection_axis": true,
+    "final_reporting_rule": "retain every preregistered training seed as a replicate; never choose the best seed after validation or final-test evaluation"
+  },
+  "candidate_set": {
+    "source": "all checkpoints emitted by the algorithm-specific preregistered checkpoint schedule",
+    "candidate_schedule_must_be_frozen_before_training": true,
+    "selective_omission_forbidden": true,
+    "validation_gradient_updates_forbidden": true,
+    "validation_years": [2018, 2019, 2020, 2021, 2022],
+    "eta_levels": [0.9, 0.95, 0.98],
+    "required_validation_cells_per_checkpoint": 15,
+    "locked_final_test_station_years": [2023, 2024, 2025]
+  },
+  "metric_semantics": {
+    "risk_metric": "LCVaR_0.20(Y_pi(w)/Y_ref(w) | eta)",
+    "risk_evaluated_separately_by_eta": true,
+    "eta_feasible_rule": "LCVaR_0.20(retention | eta) >= eta",
+    "joint_feasible_rule": "checkpoint is jointly feasible iff all three registered eta levels are feasible",
+    "mean_irrigation_metric": "arithmetic mean total seasonal IRCM across the 15 validation weather-target cells, with each eta and weather year equally weighted",
+    "total_irrigation_includes_fixed_preplant_mm": 45.0,
+    "scientific_feasibility_slack": 0.0
+  },
+  "selection_rule": {
+    "type": "deterministic_lexicographic",
+    "feasible_checkpoint_order": [
+      "minimum mean validation total irrigation across all 15 cells",
+      "maximum minimum risk margin across eta levels",
+      "maximum mean risk margin across eta levels",
+      "earlier training step",
+      "lexicographically smaller checkpoint id"
+    ],
+    "no_jointly_feasible_fallback_order": [
+      "minimum worst positive risk shortfall across eta levels",
+      "minimum mean positive risk shortfall across eta levels",
+      "minimum mean validation total irrigation across all 15 cells",
+      "maximum minimum risk margin across eta levels",
+      "earlier training step",
+      "lexicographically smaller checkpoint id"
+    ],
+    "fallback_checkpoint_status": "selected_infeasible",
+    "fallback_interpretation": "A fallback checkpoint remains scientifically infeasible. Selection only defines a deterministic representative when training never produced a jointly feasible checkpoint; it does not convert failure into success."
+  },
+  "evaluation_mode": {
+    "policy_action_mode": "must be declared in the algorithm-specific protocol before training and then held identical for every candidate checkpoint and final evaluation",
+    "environment_determinism": "same frozen DSSAT/agricultural/weather protocol for every candidate",
+    "reference_values": "use frozen development Y_ref for 2018-2022",
+    "repeated_stochastic_rollouts": "if an algorithm uses stochastic evaluation, rollout replication count and evaluation seeds must be frozen before training; checkpoint selection code itself must not change based on observed validation outcomes"
+  },
+  "final_test_lock": {
+    "station_reference_generation_allowed_only_after_selection": true,
+    "station_checkpoint_reselection_forbidden": true,
+    "station_hyperparameter_updates_forbidden": true,
+    "station_seed_selection_forbidden": true,
+    "required_pre_final_freeze": [
+      "algorithm implementation",
+      "algorithm hyperparameters",
+      "training seeds",
+      "checkpoint candidate schedule",
+      "evaluation action mode",
+      "selected checkpoint for every training seed"
+    ]
+  },
+  "change_rule": "Any change to checkpoint candidacy, validation metrics, lexicographic ordering, seed handling or fallback semantics after PPO training begins requires a new evaluation-contract version and cannot overwrite v1."
+}
