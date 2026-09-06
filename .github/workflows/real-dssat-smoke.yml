@@ -89,3 +89,11 @@ jobs:
               --config "configs/formal_baseline_${method}_w60_2000.json" \
               --audit-output "/tmp/awm_${method}_w60_2000.audit.json"
           done
+      - name: Real cross-year materializer gate (2001 and 2022)
+        run: |
+          python -m awm.baselines.development_sweep \
+            --project-root . \
+            --years 2001,2022 \
+            --methods conventional,rew \
+            --treatments W100,W60 \
+            --work-dir runtime/cross_year_gate
