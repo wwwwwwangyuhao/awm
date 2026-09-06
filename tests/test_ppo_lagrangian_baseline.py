@@ -127,7 +127,7 @@ def test_protocol_matches_ppo_interaction_actor_and_validation_budgets():
     )
     assert lag["policy"]["actor_hidden_dims"] == ppo["policy"]["actor_hidden_dims"]
     assert lag["policy"]["observation_dim"] == ppo["environment"]["observation_dim"]
-    assert lag["rollout"]["episodes_per_update"] == ppo["rollout"]["episodes_per_update"]
+    assert lag["rollout"]["episodes_per_update"] == ppo["rollout"]["balanced_weather_eta_cells_per_update"]
     assert lag["rollout"]["transitions_per_update"] == ppo["rollout"]["transitions_per_update"]
     assert lag["interaction_budget"]["training_episodes_per_seed"] == ppo["interaction_budget"]["training_episodes_per_seed"]
     assert lag["interaction_budget"]["decision_transitions_per_seed"] == ppo["interaction_budget"]["decision_transitions_per_seed"]
