@@ -1,11 +1,7 @@
-"""Formal learned-method orchestration utilities for AWM."""
+"""Formal learned-method orchestration utilities for AWM.
 
-from .formal_monitor import inspect_formal_runs
-from .formal_selection import select_formal_checkpoints
-from .development_export import export_selected_validation
+Submodules are intentionally not imported here so their command-line entry
+points can be executed with ``python -m`` without runpy pre-import warnings.
+"""
 
-__all__ = [
-    "export_selected_validation",
-    "inspect_formal_runs",
-    "select_formal_checkpoints",
-]
+__all__: list[str] = []
