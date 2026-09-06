@@ -1,0 +1,36 @@
+{
+  "status": "engineering_smoke_candidate_not_protocol_locked",
+  "purpose": "Validate the AWM-owned custom DSSAT 4.8.5 mulch executable, hashed runtime, COX rendering, 13-file daily output parsing, and Summary.OUT parsing before formal agronomic protocol lock.",
+  "source": {
+    "repository": "wwwwwwangyuhao/lrmb",
+    "branch": "exp/v3-recoverable-policy-manifold-train10000",
+    "commit": "d56336e09fdb9a9aea60ae61eaa892833314ab33",
+    "generator": "dssat/file_handler.py::DSSATFileHandler.write_COX",
+    "environment_config": "configs/environment.py"
+  },
+  "engineering_instantiation": {
+    "weather_year": 2000,
+    "exp_year_yy": "00",
+    "field_id": "XJHX0001",
+    "weather_station": "XJHX0001",
+    "weather_source": "era5",
+    "weather_file": "dssat_workspace_template/data/wth/era5/XJHX0001.WTH",
+    "soil_id": "XJHX0001",
+    "soil_file": "dssat_workspace_template/data/soil/SOIL.SOL",
+    "cultivar": "IB0007",
+    "plant_yrdoy": "00119",
+    "emergence_yrdoy": "00133",
+    "mulch_albedo_PMALB": 0.12,
+    "mulch_width_PM​​WD_cm": 22.5,
+    "policy_irrigation_rows": 0,
+    "irrigation_marker": "{{AWM_IRRIGATION_EVENTS}}"
+  },
+  "known_review_blockers": [
+    "Historical V3 descriptive metadata says JIANGDU/Jiangsu while field, weather and soil identifiers are XJHX; do not use this descriptive metadata as formal site provenance.",
+    "The historical generator writes an explicit fertilizer row with FAMN=0 when no fertilizer CSV is supplied; this is not the formal fixed-N schedule required by the AWM paper.",
+    "Automatic irrigation and automatic nitrogen parameter rows remain present exactly as in the historical generator; their effective behavior under the historical MANAGEMENT control row must be confirmed from real DSSAT outputs before protocol lock.",
+    "Initial soil water and mineral-N values are inherited from the historical V3 generator and remain candidate provenance until independently reviewed.",
+    "This template is for engineering smoke only. It must not be used for baseline tuning, RL training, calibration, or paper-result generation."
+  ],
+  "formal_protocol_locked": false
+}
