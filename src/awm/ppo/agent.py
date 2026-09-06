@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import math
 from statistics import mean
+from typing import Mapping
 
 import torch
 import torch.nn.functional as F
@@ -222,8 +223,25 @@ class PPOAgent:
             "actor_state_dict": self.actor.state_dict(),
             "critic_state_dict": self.critic.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
+            "generator_state": self.generator.get_state(),
             "hyperparameters": asdict(self.hparams),
         }
+
+    def load_checkpoint_payload(self, payload: Mapping[str, object]) -> None:
+        if payload.get("protocol_id") != "awm-ppo-baseline-v1":
+            raise ValueError("checkpoint protocol_id is not awm-ppo-baseline-v1")
+        if int(payload.get("seed", -1)) != self.seed:
+            raise ValueError("checkpoint seed does not match PPOAgent seed")
+        if payload.get("hyperparameters") != asdict(self.hparams):
+            raise ValueError("checkpoint hyperparameters do not match PPOAgent configuration")
+        self.actor.load_state_dict(payload["actor_state_dict"], strict=True)
+        self.critic.load_state_dict(payload["critic_state_dict"], strict=True)
+        self.optimizer.load_state_dict(payload["optimizer_state_dict"])
+        self.policy_version = int(payload["policy_version"])
+        self.update_index = int(payload["update_index"])
+        if self.policy_version < 0 or self.update_index < 0:
+            raise ValueError("checkpoint version/update index must be nonnegative")
+        self.generator.set_state(payload["generator_state"])
 
 
 __all__ = ["PPOAgent", "PPOHyperparameters", "PPOUpdateStats"]
