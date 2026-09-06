@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -30,6 +31,24 @@ def _require(config: Mapping[str, Any], *keys: str) -> None:
     missing = [key for key in keys if key not in config]
     if missing:
         raise KeyError("baseline smoke config missing keys: " + ", ".join(missing))
+
+
+def _validate_budget_accounting(config: Mapping[str, Any]) -> None:
+    """Keep total seasonal water distinct from the postplant policy quota."""
+    if "total_seasonal_budget_mm" not in config:
+        return
+    total = float(config["total_seasonal_budget_mm"])
+    policy = float(config["seasonal_budget_mm"])
+    fixed = float(config["nonpolicy_irrigation_mm"])
+    for label, value in (("total", total), ("policy", policy), ("nonpolicy", fixed)):
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError(f"{label} irrigation budget must be finite and >= 0")
+    if abs(total - (policy + fixed)) > 1e-9:
+        raise ValueError(
+            "total_seasonal_budget_mm must equal seasonal_budget_mm + "
+            "nonpolicy_irrigation_mm; got "
+            f"{total} != {policy} + {fixed}"
+        )
 
 
 def build_baseline(spec: Mapping[str, Any]) -> AgriculturalBaseline:
@@ -99,6 +118,7 @@ def run_real_baseline(
         "yield_target_fraction",
         "baseline",
     )
+    _validate_budget_accounting(config)
 
     root = resolve_project_root(config_path, project_root)
     with WorkspaceRootLock(project_root=root, runtime_base=runtime_base):
@@ -171,6 +191,7 @@ def run_real_baseline(
         policy = build_baseline(baseline_spec)
         result = run_baseline_episode(env, policy)
 
+        total_budget = config.get("total_seasonal_budget_mm")
         audit_payload = {
             "baseline_name": result.baseline_name,
             "config_path": str(Path(config_path).resolve()),
@@ -178,6 +199,9 @@ def run_real_baseline(
             "runtime_id": worker.runtime_id,
             "runtime_root": str(worker.runtime_root),
             "workspace": str(worker.workspace),
+            "total_seasonal_budget_mm": float(total_budget) if total_budget is not None else None,
+            "policy_budget_mm": float(config["seasonal_budget_mm"]),
+            "nonpolicy_irrigation_mm": float(config["nonpolicy_irrigation_mm"]),
             "step_audits": list(result.step_audits),
             "terminal_info": dict(result.terminal_info),
         }
@@ -196,6 +220,10 @@ def run_real_baseline(
             "runtime_root": str(worker.runtime_root),
             "workspace": str(worker.workspace),
             "baseline_name": result.baseline_name,
+            "water_treatment": config.get("water_treatment"),
+            "total_seasonal_budget_mm": float(total_budget) if total_budget is not None else None,
+            "policy_budget_mm": float(config["seasonal_budget_mm"]),
+            "fixed_nonpolicy_irrigation_mm": float(config["nonpolicy_irrigation_mm"]),
             "HWAM_kg_ha": result.yield_hwam_kg_ha,
             "IRCM_mm": result.dssat_ircm_mm,
             "policy_irrigation_mm": result.policy_irrigation_mm,
