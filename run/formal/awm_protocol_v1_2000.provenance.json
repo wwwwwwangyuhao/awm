@@ -2,7 +2,7 @@
   "protocol_id": "awm-agricultural-v1",
   "formal_protocol_locked": true,
   "template_path": "run/formal/awm_protocol_v1_2000.COX.in",
-  "template_git_blob_sha1": "064f3491d8e53f952f618019e5b0eb2c7698c511",
+  "template_git_blob_sha1": "ef29e1a42b46aca1dd968d57cd076a03ceb98f92",
   "agronomic_sources": {
     "site": {
       "name": "Huaxing Farm, Changji, Xinjiang, China",
