@@ -1,8 +1,8 @@
 """Self-contained DSSAT runtime asset management for AWM.
 
 The versioned template lives in ``dssat_workspace_template/``. Mutable workers
-are copied from that template into an ignored runtime directory. The template
-must never be modified during an episode.
+must be copied from that template into AWM's short hashed runtime namespace,
+not run directly inside an arbitrarily named Git checkout.
 """
 from __future__ import annotations
 
@@ -10,6 +10,10 @@ import json
 import shutil
 from pathlib import Path
 
+from .runtime_paths import (
+    ensure_runtime_roots,
+    worker_workspace_for_project,
+)
 from .workspace import validate_dssatpro_record_width
 
 CUSTOM_DSSAT_BASE_VERSION = "4.8.5"
@@ -113,7 +117,11 @@ def prepare_worker_from_template(
     *,
     replace: bool = False,
 ) -> dict[str, object]:
-    """Create one mutable DSSAT worker entirely from the AWM-owned template."""
+    """Low-level worker creation at an explicitly supplied workspace path.
+
+    New AWM code should normally call :func:`prepare_project_worker`, which
+    chooses the length-controlled hashed runtime path automatically.
+    """
     template = Path(template_dir).resolve()
     worker = Path(workspace).resolve()
     validate_versioned_template(template)
@@ -161,12 +169,57 @@ def prepare_worker_from_template(
     }
 
 
+def prepare_project_worker(
+    template_dir: str | Path,
+    *,
+    project_root: str | Path,
+    policy_idx: int,
+    env_idx: int,
+    replace: bool = False,
+    runtime_base: str | Path | None = None,
+) -> dict[str, object]:
+    """Create one worker under AWM's short hashed runtime namespace."""
+    runtime = ensure_runtime_roots(
+        project_root=project_root,
+        runtime_base=runtime_base,
+        metadata={
+            "simulator_base_version": CUSTOM_DSSAT_BASE_VERSION,
+            "simulator_build_label": CUSTOM_DSSAT_BUILD_LABEL,
+        },
+    )
+    workspace = worker_workspace_for_project(
+        project_root,
+        policy_idx=policy_idx,
+        env_idx=env_idx,
+        runtime_base=runtime_base,
+    )
+    report = prepare_worker_from_template(
+        template_dir,
+        workspace,
+        replace=replace,
+    )
+    report = dict(report)
+    report.update(
+        {
+            "runtime_id": runtime["runtime_id"],
+            "runtime_base": runtime["runtime_base"],
+            "runtime_root": runtime["runtime_root"],
+            "worker_root": runtime["worker_root"],
+            "policy_idx": int(policy_idx),
+            "env_idx": int(env_idx),
+            "workspace_naming": "p<policy_idx>e<env_idx>",
+        }
+    )
+    return report
+
+
 __all__ = [
     "CUSTOM_DSSAT_BASE_VERSION",
     "CUSTOM_DSSAT_BUILD_LABEL",
     "CUSTOM_DSSAT_EXECUTABLE",
     "ERA5_WEATHER_FILENAMES",
     "STATION_WEATHER_FILENAMES",
+    "prepare_project_worker",
     "prepare_worker_from_template",
     "render_dssatpro",
     "validate_versioned_template",
