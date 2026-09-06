@@ -1,129 +1,105 @@
-# Agricultural baselines and real-worker asset freeze
+# Agricultural Baselines v1
 
-## Scope
+Machine-readable source of truth: `configs/agricultural_baselines_v1.json`.
 
-Step 4 adds non-learning agricultural comparison policies before any RL
-baseline or RCWA-RL implementation. Every baseline uses the same
-`WaterBudgetController` and `DSSATIrrigationAdapter` as learned policies, so
-seasonal quota, event-depth limits, irrigation interval, execution resolution
-and terminal IRCM reconciliation are identical across methods.
+All three non-learning comparators use the same formal agricultural protocol, custom DSSAT 4.8.5 mulch build, fixed 45-mm preplant establishment irrigation, postplant `WaterBudgetController`, 45-mm event cap, 0.1-mm execution resolution and terminal IRCM reconciliation as learned policies.
 
-## Baseline A — local conventional schedule
+For every episode:
 
-`ConventionalScheduleBaseline` accepts an explicit map from **biological action
-DAP** (1..T) to event depth in mm.
+`IRCM_expected = 45 mm fixed preplant + sum(executed postplant irrigation)`.
 
-No schedule is embedded in code. The formal schedule must come from the local
-field protocol/recommendation and be frozen in `EXPERIMENT_PROTOCOL.md`.
+The W100/W80/W60 total seasonal limits are 540/432/324 mm; therefore their postplant policy quotas are 495/387/279 mm.
 
-When a water-scarcity treatment cannot execute the original event exactly, the
-common water-budget controller performs the same projection used for every
-method. Requested and executed depths are both logged.
+## A. Quota-normalized Huaxing conventional timing
 
-## Baseline B — DSSAT potential-ET water balance
+Implementation: `ConventionalScheduleBaseline`.
 
-`PotentialETWaterBalanceBaseline` is a causal ET-based comparator using only
-current/past information. It uses the DSSAT daily variables:
+Timing provenance is the 2023 Huaxing W100 field treatment in `wwwwwwangyuhao/dssat_cultivar_calibration:data/COX/XJHX2301.COX`. That treatment used the local full-water level of 360 m3 mu^-1 = 540 mm and planted on DOY 124. Its positive postplant irrigation DOYs were:
 
-- `EOAA`: potential evapotranspiration, mm d-1;
-- `PRED`: observed precipitation for the current simulated day.
+`160, 170, 180, 190, 195, 202, 209, 216, 223, 230, 237`.
 
-The internal deficit ledger is
+Subtracting planting DOY gives canonical biological action DAPs:
+
+`36, 46, 56, 66, 71, 78, 85, 92, 99, 106, 113`.
+
+Historical individual event depths sometimes exceeded the protocol-v1 45-mm operational cap. The comparator therefore preserves the **local field timing** but quota-normalizes depth onto the common feasible action envelope rather than granting the conventional baseline an exception.
+
+- W100 postplant: 11 × 45.0 = 495.0 mm.
+- W80 postplant: nine 35.2-mm + two 35.1-mm events = 387.0 mm.
+- W60 postplant: seven 25.4-mm + four 25.3-mm events = 279.0 mm.
+
+All amounts lie on the common 0.1-mm execution grid. The fixed preplant 45 mm is not requested by this policy; it is already in the formal COX.
+
+This W100 schedule is also the protocol-v1 timing reference for year-specific `Y_ref(w)` simulations.
+
+## B. Causal DSSAT potential-ET deficit rule
+
+Implementation: `PotentialETWaterBalanceBaseline`.
+
+It uses only current/past DSSAT variables:
+
+- `EOAA`: DSSAT potential evapotranspiration (mm d^-1);
+- `PRED`: current-day precipitation (mm).
+
+Ledger:
 
 `D <- max(0, D + EOAA - f_eff * PRED)`.
 
-An event is requested only after `D` reaches a pre-registered trigger. After
-execution,
+When `D >= 40.5 mm`, the rule requests:
 
-`D <- max(0, D - eta_I * I_executed)`.
+`I_requested = D / 0.90`,
 
-`trigger_deficit_mm`, effective-rain fraction, irrigation efficiency and refill
-fraction are protocol quantities with no software defaults.
+subject to the common 45-mm event cap and remaining quota. After execution:
 
-This comparator is deliberately **not called FAO-56**. The canonical DSSAT
-weather files currently contain SRAD, TMAX, TMIN, RAIN and WIND but not the
-full meteorological input set needed to claim a strict FAO-56
-Penman-Monteith ET0 calculation. If a later experiment adds validated humidity
-or ET0 data, a separate FAO-56 comparator can be preregistered.
+`D <- max(0, D - 0.90 * I_executed)`.
 
-## Baseline C — root-zone REW threshold
+Frozen parameters:
 
-`RootZoneREWThresholdBaseline` computes active-root-zone water status from the
-same leakage-safe DSSAT state used by RL:
+- `irrigation_efficiency = 0.90`. FAO gives 90% as an indicative drip-irrigation field application efficiency: https://www.fao.org/4/t7202e/t7202e08.htm
+- `trigger_deficit_mm = 40.5 = 0.90 × 45`. A capacity-sized 45-mm gross event therefore corresponds to one threshold-sized net deficit.
+- `effective_rain_fraction = 1.0`. All causal DSSAT precipitation is credited; no unvalidated empirical effective-rain/runoff coefficient is introduced.
+- `refill_fraction = 1.0`. The observed deficit is fully targeted, while the common executor enforces event and seasonal limits.
+
+This rule is **not** described as a complete FAO-56 Penman-Monteith scheduler. It is a transparent DSSAT-potential-ET water-balance comparator.
+
+## C. Root-zone REW threshold rule
+
+Implementation: `RootZoneREWThresholdBaseline`.
+
+The policy computes:
 
 `REW_root = sum(REWi * RLiD) / sum(RLiD), i=1..10`.
 
-Before root-length values are numerically available, the formal experiment must
-supply an explicit fallback layer set; no fallback soil depth is hidden in
-code.
+Frozen parameters:
 
-When `REW_root <= trigger_rew`, the rule requests the pre-registered event
-depth. Hard interval/quota/capacity constraints remain external and common.
+- `trigger_rew = 0.35`;
+- `event_depth_mm = 45.0`;
+- fallback layers before positive root-length weights: REW layers 1-4 (0-30 cm by the protocol layer boundaries).
 
-## Episode outcomes
+The threshold is derived from cotton depletion fraction `p=0.65`: FAO defines `p` as the fraction of total available water that may be depleted before stress begins, so under AWM's `REW=(SW-LL)/(DUL-LL)` normalization the corresponding remaining-water threshold is approximately `1-p=0.35`. FAO56 defines RAW = p·TAW and a later Agricultural Water Management cotton drip-irrigation study independently recommends a baseline p of 0.65.
 
-`run_baseline_episode()` returns:
+Sources:
 
-- terminal HWAM;
-- DSSAT IRCM;
-- executed policy irrigation;
-- irrigation event count;
-- requested/projected event counts;
-- complete per-step action audit;
-- irrigation water productivity `HWAM / (10 * IRCM)`.
+- FAO56 soil-water stress definition: https://www.fao.org/4/X0490E/x0490e0e.htm
+- Cotton p=0.65 evidence: DOI `10.1016/j.agwat.2021.106881`.
 
-Agricultural water use is always based on executed management, never raw rule
-or actor requests.
+The top-30-cm fallback is used only before DSSAT provides positive root-length weights; thereafter the rule is dynamically root-weighted.
 
-## Freezing a validated COX template
+## No validation-set tuning for v1
 
-The old LRMB/SAPG workflow generated COX dynamically and therefore does not
-contain a static validated COX file in Git. AWM now includes:
+The v1 baseline parameters are fixed **before** 2023-2025 station evaluation from field operations, physical constraints and external agronomic references. They are not optimized against final-test performance and, by default, are not hyperparameter-tuned on 2018-2022 either. Validation years are used for sanity and robustness assessment.
 
-```bash
-python -m awm.dssat.freeze_template \
-  --source-cox /path/to/known_good_reset.COX \
-  --output-template /path/to/awm_base.COX.in \
-  --report /path/to/awm_base.template.json
-```
+Changing these definitions after inspecting station-test outcomes requires a new baseline protocol version and cannot overwrite v1.
 
-The preferred source is a **successful no-policy/reset worker COX**. By default
-the command refuses a source containing explicit irrigation rows. This forces
-the researcher to classify any existing irrigation as policy or fixed
-non-policy management before it can be stripped.
+## Formal smoke gate
 
-The report records SHA-256 for both source and frozen template. The formal
-protocol must lock the template hash.
+GitHub Actions can execute the repository-vendored `dscsm048` directly on Ubuntu. Before the standard learned RL baseline is implemented, each of the three W100 baseline definitions must complete a full 125-decision real-DSSAT episode with:
 
-## Legacy asset provenance discovered in `lrmb`
+- the formal COX;
+- 45-mm fixed preplant irrigation;
+- fixed 235 kg N ha^-1;
+- 13 canonical daily OUT files;
+- passing `IRCM = 45 + policy irrigation` reconciliation;
+- complete requested/executed action audit.
 
-The already-run DSSAT workflow at `lrmb` branch `exp/sapg`, commit
-`b6257a29249969ea4b43849debe3e65657902e7d`, contains:
-
-- `dssat_workspace_template/dscsm048`;
-- `dssat_workspace_template/DSSATPRO.L48`;
-- `dssat_workspace_template/Genotype/*`;
-- `dssat_workspace_template/data/soil/SOIL.SOL`;
-- ERA5 weather files for 2000–2025;
-- station weather files for 2023–2025.
-
-The old canonical environment used site code `XJHX`, planting DOY 119,
-emergence DOY 133 and a 125-decision horizon.
-
-These facts establish **candidate asset provenance only**. They do not prove
-that the AWM paper should inherit every agronomic setting. Formal use requires
-review and protocol locking of the actual COX template, soil/genotype files,
-weather split and management constants.
-
-## Real binary step still required
-
-GitHub-side development cannot execute the user's Linux DSSAT binary in its
-worker runtime. Before formal training, run on the DSSAT server:
-
-1. freeze a known-good reset COX;
-2. populate the real smoke JSON with worker-local paths;
-3. run `python -m awm.dssat.smoke --config ...`;
-4. run one complete 125-day agricultural-baseline episode;
-5. require terminal IRCM reconciliation to pass.
-
-Only after those checks should a learned RL baseline be implemented.
+After W100 acceptance, W80/W60 configs and the 2000-2022 development-weather sweep are generated from the same locked definitions.

@@ -395,19 +395,31 @@ class DSSATIrrigationAdapter:
 def _quantize_amount(
     value: float, *, resolution: float, lower: float, upper: float
 ) -> float:
-    """Round to execution resolution without crossing the feasible upper bound."""
+    """Round to execution resolution without crossing a real feasible bound.
+
+    The controller tracks water in binary floats, while execution resolution is
+    a decimal field quantity. Repeated 0.1-mm-grid events can therefore leave a
+    feasible upper bound such as 25.29999999999998 when the intended remaining
+    quota is exactly 25.3 mm. Treat a candidate that exceeds the bound only by
+    microscopic float drift as the bound itself; otherwise floor to the largest
+    executable grid point below the true bound.
+    """
 
     q = Decimal(str(resolution))
     value_d = Decimal(str(value))
     lower_d = Decimal(str(lower))
     upper_d = Decimal(str(upper))
+    drift_tol = max(Decimal("1e-9"), q * Decimal("1e-9"))
 
     units = (value_d / q).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     candidate = units * q
     if candidate > upper_d:
-        candidate = (
-            (upper_d / q).quantize(Decimal("1"), rounding=ROUND_FLOOR) * q
-        )
+        if candidate - upper_d <= drift_tol:
+            candidate = upper_d
+        else:
+            candidate = (
+                (upper_d / q).quantize(Decimal("1"), rounding=ROUND_FLOOR) * q
+            )
     if candidate < lower_d:
         candidate = lower_d
     if candidate > upper_d:

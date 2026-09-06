@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -30,6 +31,62 @@ def _require(config: Mapping[str, Any], *keys: str) -> None:
     missing = [key for key in keys if key not in config]
     if missing:
         raise KeyError("baseline smoke config missing keys: " + ", ".join(missing))
+
+
+def _validate_budget_accounting(config: Mapping[str, Any]) -> None:
+    """Keep total seasonal water distinct from the postplant policy quota."""
+    if "total_seasonal_budget_mm" not in config:
+        return
+    total = float(config["total_seasonal_budget_mm"])
+    policy = float(config["seasonal_budget_mm"])
+    fixed = float(config["nonpolicy_irrigation_mm"])
+    for label, value in (("total", total), ("policy", policy), ("nonpolicy", fixed)):
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError(f"{label} irrigation budget must be finite and >= 0")
+    if abs(total - (policy + fixed)) > 1e-9:
+        raise ValueError(
+            "total_seasonal_budget_mm must equal seasonal_budget_mm + "
+            "nonpolicy_irrigation_mm; got "
+            f"{total} != {policy} + {fixed}"
+        )
+
+
+def _executed_event_summary(
+    step_audits: tuple[Mapping[str, object], ...],
+) -> list[dict[str, object]]:
+    """Compact event trace preserving desired, constrained and executed water."""
+    events: list[dict[str, object]] = []
+    for step in step_audits:
+        if not bool(step.get("irrigation_event_applied")):
+            continue
+        events.append(
+            {
+                "policy_day": int(step["policy_day"]),
+                "action_dap": int(step["decision_action_day"]),
+                "action_yrdoy": str(step["decision_action_yrdoy"]),
+                "baseline_desired_mm": float(step["baseline_desired_mm"]),
+                "baseline_constrained_request_mm": float(
+                    step["baseline_constrained_request_mm"]
+                ),
+                "baseline_constraint_adjusted": bool(
+                    step["baseline_constraint_adjusted"]
+                ),
+                "baseline_constraint_reasons": list(
+                    step.get("baseline_constraint_reasons", ())
+                ),
+                "applied_mm": float(step["applied_irrigation_mm"]),
+                "adapter_projected": bool(
+                    step.get("irrigation_action_projected", False)
+                ),
+                "adapter_quantized": bool(
+                    step.get("irrigation_execution_quantized", False)
+                ),
+                "adapter_projection_reasons": list(
+                    step.get("irrigation_projection_reasons", ())
+                ),
+            }
+        )
+    return events
 
 
 def build_baseline(spec: Mapping[str, Any]) -> AgriculturalBaseline:
@@ -99,6 +156,7 @@ def run_real_baseline(
         "yield_target_fraction",
         "baseline",
     )
+    _validate_budget_accounting(config)
 
     root = resolve_project_root(config_path, project_root)
     with WorkspaceRootLock(project_root=root, runtime_base=runtime_base):
@@ -170,7 +228,9 @@ def run_real_baseline(
             raise TypeError("baseline must be a JSON object")
         policy = build_baseline(baseline_spec)
         result = run_baseline_episode(env, policy)
+        executed_events = _executed_event_summary(result.step_audits)
 
+        total_budget = config.get("total_seasonal_budget_mm")
         audit_payload = {
             "baseline_name": result.baseline_name,
             "config_path": str(Path(config_path).resolve()),
@@ -178,6 +238,14 @@ def run_real_baseline(
             "runtime_id": worker.runtime_id,
             "runtime_root": str(worker.runtime_root),
             "workspace": str(worker.workspace),
+            "total_seasonal_budget_mm": float(total_budget) if total_budget is not None else None,
+            "policy_budget_mm": float(config["seasonal_budget_mm"]),
+            "nonpolicy_irrigation_mm": float(config["nonpolicy_irrigation_mm"]),
+            "baseline_desired_event_count": result.desired_event_count,
+            "hierarchical_requested_event_count": result.requested_event_count,
+            "baseline_constraint_adjusted_event_count": result.baseline_constraint_adjusted_event_count,
+            "adapter_projected_event_count": result.projected_event_count,
+            "executed_events": executed_events,
             "step_audits": list(result.step_audits),
             "terminal_info": dict(result.terminal_info),
         }
@@ -196,13 +264,20 @@ def run_real_baseline(
             "runtime_root": str(worker.runtime_root),
             "workspace": str(worker.workspace),
             "baseline_name": result.baseline_name,
+            "water_treatment": config.get("water_treatment"),
+            "total_seasonal_budget_mm": float(total_budget) if total_budget is not None else None,
+            "policy_budget_mm": float(config["seasonal_budget_mm"]),
+            "fixed_nonpolicy_irrigation_mm": float(config["nonpolicy_irrigation_mm"]),
             "HWAM_kg_ha": result.yield_hwam_kg_ha,
             "IRCM_mm": result.dssat_ircm_mm,
             "policy_irrigation_mm": result.policy_irrigation_mm,
             "IWP_kg_m3": result.irrigation_water_productivity_kg_m3,
-            "irrigation_event_count": result.irrigation_event_count,
+            "baseline_desired_event_count": result.desired_event_count,
             "requested_event_count": result.requested_event_count,
+            "baseline_constraint_adjusted_event_count": result.baseline_constraint_adjusted_event_count,
             "projected_event_count": result.projected_event_count,
+            "irrigation_event_count": result.irrigation_event_count,
+            "executed_events": executed_events,
             "irrigation_accounting_passed": result.irrigation_accounting_passed,
             "audit_output": str(Path(audit_output).resolve()) if audit_output else None,
             "output_reader_metrics": reader.metrics,
