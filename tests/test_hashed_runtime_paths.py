@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -97,31 +98,35 @@ def test_prepare_project_worker_uses_short_hashed_workspace(tmp_path):
         "an_intentionally_very_long_awm_checkout_name_that_must_not_be_written_"
         "into_dssatpro_l48"
     )
-    runtime_base = tmp_path / "rt" / "awm"
 
-    report = prepare_project_worker(
-        template,
-        project_root=project,
-        policy_idx=3,
-        env_idx=7,
-        replace=True,
-        runtime_base=runtime_base,
-    )
+    # The runtime base itself must be short. Using pytest's long tmp_path here
+    # would correctly trigger the A80 guard and would test the wrong contract.
+    with tempfile.TemporaryDirectory(prefix="awrt_", dir="/tmp") as runtime_name:
+        runtime_base = Path(runtime_name) / "awm"
 
-    expected = worker_workspace_for_project(
-        project,
-        policy_idx=3,
-        env_idx=7,
-        runtime_base=runtime_base,
-    )
-    assert Path(str(report["workspace"])) == expected.resolve()
-    assert expected.name == "p3e7"
-    assert project.name not in str(expected)
-    assert report["fixed_width_preflight"]["status"] == "passed"
+        report = prepare_project_worker(
+            template,
+            project_root=project,
+            policy_idx=3,
+            env_idx=7,
+            replace=True,
+            runtime_base=runtime_base,
+        )
 
-    profile = (expected / "DSSATPRO.L48").read_text(encoding="utf-8")
-    assert str(expected.resolve()) in profile
-    assert project.name not in profile
+        expected = worker_workspace_for_project(
+            project,
+            policy_idx=3,
+            env_idx=7,
+            runtime_base=runtime_base,
+        )
+        assert Path(str(report["workspace"])) == expected.resolve()
+        assert expected.name == "p3e7"
+        assert project.name not in str(expected)
+        assert report["fixed_width_preflight"]["status"] == "passed"
+
+        profile = (expected / "DSSATPRO.L48").read_text(encoding="utf-8")
+        assert str(expected.resolve()) in profile
+        assert project.name not in profile
 
 
 def test_workspace_root_lock_rejects_second_owner(tmp_path):
