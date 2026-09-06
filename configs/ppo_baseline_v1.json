@@ -1,0 +1,101 @@
+{
+  "ppo_protocol_id": "awm-ppo-baseline-v1",
+  "status": "locked_before_formal_ppo_training",
+  "algorithm": "standard_single_policy_ppo",
+  "base_contracts": {
+    "agricultural": "awm-agricultural-v1",
+    "risk": "awm-risk-contract-v1",
+    "evaluation": "awm-learned-method-evaluation-v1"
+  },
+  "reference_provenance": {
+    "read_only_repository": "wwwwwwangyuhao/lrmb",
+    "read_only_branch": "exp/ppo",
+    "read_only_commit": "7a752c02294603b2100ed80cfef12a46f3e2f6ad",
+    "usage": "engineering reference for strict single-policy on-policy PPO and hierarchical gate/amount probability semantics only; no LRMB runtime dependency"
+  },
+  "environment": {
+    "observation_dim": 79,
+    "policy_water_budget_mm": 495.0,
+    "fixed_preplant_irrigation_mm": 45.0,
+    "training_water_availability": "W100 upper bound only; the learned policy minimizes actual use below this cap",
+    "training_years": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017],
+    "validation_years": [2018, 2019, 2020, 2021, 2022],
+    "locked_final_test_station_years": [2023, 2024, 2025],
+    "eta_levels": [0.90, 0.95, 0.98]
+  },
+  "policy": {
+    "single_policy": true,
+    "hierarchical_action": "Bernoulli irrigation gate plus active-only tanh-Gaussian amount_fraction",
+    "exact_noop": true,
+    "amount_fraction_range": [0.0, 1.0],
+    "amount_latent_log_std_clip": [-5.0, 1.0],
+    "gate_initial_probability": 0.5,
+    "behavior_probability_contract": "PPO likelihood ratios use the sampled gate and pre-tanh amount latent. Environment projection/canonicalization never replaces the sampled behavior action in the PPO log-probability.",
+    "actor_hidden_dims": [256, 128],
+    "critic_hidden_dims": [256, 128],
+    "activation": "tanh",
+    "layer_norm": true,
+    "actor_critic_parameter_sharing": false,
+    "policy_latent": false
+  },
+  "reward": {
+    "name": "feasibility_first_scalar_surrogate",
+    "step_reward": "- executed_policy_irrigation_mm / 495",
+    "terminal_retention": "R = HWAM / Y_ref(weather_year)",
+    "terminal_violation_penalty": "0 if R >= eta else -(1 + eta - R)",
+    "episode_return": "- I_policy/495 - 1[R<eta]*(1 + eta - R)",
+    "gamma_requirement": 1.0,
+    "reason": "With I_policy/495 in [0,1], every target-feasible episode has return in [-1,0] while every target-infeasible episode has return below -1. The surrogate therefore prioritizes per-year target feasibility before water saving without a tunable penalty coefficient.",
+    "not_claimed_as": "LCVaR optimization; PPO remains a scalar expected-return baseline and formal risk is evaluated separately using Risk Contract v1"
+  },
+  "optimizer": {
+    "learning_rate": 0.0001,
+    "gamma": 1.0,
+    "gae_lambda": 0.95,
+    "clip_epsilon": 0.2,
+    "update_epochs": 10,
+    "minibatch_size": 450,
+    "value_loss_coefficient": 0.5,
+    "entropy_coefficient": 0.0,
+    "max_grad_norm": 0.5,
+    "advantage_normalization": "full_rollout_standardization",
+    "value_loss": "unclipped_mse"
+  },
+  "rollout": {
+    "horizon_days_per_episode": 125,
+    "balanced_weather_eta_cells_per_update": 54,
+    "episodes_per_cell_per_update": 1,
+    "transitions_per_update": 6750,
+    "complete_episodes_only": true,
+    "strictly_on_policy": true,
+    "rollout_policy_version_must_match": true,
+    "minibatch_divides_rollout": true
+  },
+  "normalization": {
+    "state_normalization": true,
+    "state_dimension": 79,
+    "update_from_training_observations_only": true,
+    "frozen_during_validation": true,
+    "reward_scaling": false,
+    "advantage_normalization": true
+  },
+  "training": {
+    "seeds": [11, 21, 31, 41, 51],
+    "max_updates": 200,
+    "checkpoint_interval_updates": 10,
+    "validation_interval_updates": 10,
+    "validation_action_mode": "stochastic",
+    "validation_policy_draw_seeds": [1001, 1002, 1003, 1004, 1005],
+    "checkpoint_selection_contract": "awm-learned-method-evaluation-v1",
+    "seed_selection": "forbidden; all five seeds remain independent replicates"
+  },
+  "validation": {
+    "candidate_checkpoint_cells": 15,
+    "weather_eta_cartesian_product": true,
+    "state_normalizer_frozen": true,
+    "gradient_updates": false,
+    "formal_metrics": ["yield_retention", "LCVaR_0.20_by_eta", "total_irrigation_mm", "policy_irrigation_mm", "IRCM_accounting"],
+    "selection": "one checkpoint per training seed using awm-learned-method-evaluation-v1"
+  },
+  "change_rule": "Any change to PPO architecture, reward surrogate, optimizer hyperparameters, scheduler, seeds, normalization, checkpoint cadence or validation action mode after formal PPO training begins requires a new PPO protocol version."
+}
