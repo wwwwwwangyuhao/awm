@@ -1,0 +1,76 @@
+{
+  "baseline_protocol_id": "awm-agricultural-baselines-v1",
+  "agricultural_protocol_id": "awm-agricultural-v1",
+  "status": "preregistered_before_station_final_test",
+  "common": {
+    "fixed_preplant_irrigation_mm": 45.0,
+    "max_postplant_event_mm": 45.0,
+    "min_positive_execution_mm": 0.1,
+    "execution_resolution_mm": 0.1,
+    "min_interval_days": 0,
+    "ircm_tolerance_mm": 0.1,
+    "total_budget_mm": {
+      "W100": 540.0,
+      "W80": 432.0,
+      "W60": 324.0
+    },
+    "postplant_policy_budget_mm": {
+      "W100": 495.0,
+      "W80": 387.0,
+      "W60": 279.0
+    },
+    "final_test_exclusion": "No 2023-2025 station outcome may be used to alter any baseline parameter."
+  },
+  "local_conventional": {
+    "implementation": "ConventionalScheduleBaseline",
+    "name": "quota-normalized Huaxing conventional timing",
+    "source_repository": "wwwwwwangyuhao/dssat_cultivar_calibration",
+    "source_file": "data/COX/XJHX2301.COX",
+    "source_treatment": "2023_W100_360_m3_mu",
+    "source_planting_doy": 124,
+    "source_postplant_irrigation_doys": [160, 170, 180, 190, 195, 202, 209, 216, 223, 230, 237],
+    "action_daps": [36, 46, 56, 66, 71, 78, 85, 92, 99, 106, 113],
+    "transformation": "Use field-derived event timing, but quota-normalize event depths onto the common <=45 mm operational envelope. The fixed 45-mm preplant event is owned by the formal COX, not by the baseline policy.",
+    "schedules_mm_by_action_dap": {
+      "W100": {"36": 45.0, "46": 45.0, "56": 45.0, "66": 45.0, "71": 45.0, "78": 45.0, "85": 45.0, "92": 45.0, "99": 45.0, "106": 45.0, "113": 45.0},
+      "W80": {"36": 35.2, "46": 35.2, "56": 35.2, "66": 35.2, "71": 35.2, "78": 35.2, "85": 35.2, "92": 35.2, "99": 35.2, "106": 35.1, "113": 35.1},
+      "W60": {"36": 25.4, "46": 25.4, "56": 25.4, "66": 25.4, "71": 25.4, "78": 25.4, "85": 25.4, "92": 25.3, "99": 25.3, "106": 25.3, "113": 25.3}
+    },
+    "schedule_totals_postplant_mm": {"W100": 495.0, "W80": 387.0, "W60": 279.0},
+    "role": "Primary local conventional comparator and W100 timing reference for Y_ref(w)."
+  },
+  "potential_et_water_balance": {
+    "implementation": "PotentialETWaterBalanceBaseline",
+    "name": "causal DSSAT potential-ET deficit rule",
+    "trigger_deficit_mm": 40.5,
+    "irrigation_efficiency": 0.90,
+    "effective_rain_fraction": 1.0,
+    "refill_fraction": 1.0,
+    "derivation": {
+      "irrigation_efficiency": "FAO indicative field application efficiency for drip irrigation is 90%.",
+      "trigger_deficit_mm": "0.90 * 45 mm = 40.5 mm net deficit, so a full-capacity 45-mm gross event replaces one threshold-sized net deficit.",
+      "effective_rain_fraction": "Set to 1.0 to credit all causal DSSAT PRED without introducing an unvalidated empirical runoff/effective-rain coefficient.",
+      "refill_fraction": "Set to 1.0 for full replacement of the observed deficit; hard event/budget constraints remain external."
+    },
+    "state_inputs": ["EOAA", "PRED"],
+    "not_claimed_as": "FAO-56 Penman-Monteith ET0 scheduler"
+  },
+  "root_zone_rew_threshold": {
+    "implementation": "RootZoneREWThresholdBaseline",
+    "name": "root-weighted REW threshold rule",
+    "trigger_rew": 0.35,
+    "event_depth_mm": 45.0,
+    "fallback_rew_layers_1_based": [1, 2, 3, 4],
+    "derivation": {
+      "trigger_rew": "Cotton baseline depletion fraction p=0.65 implies onset-of-stress remaining available water fraction approximately 1-p=0.35 under the AWM REW=(SW-LL)/(DUL-LL) definition.",
+      "event_depth_mm": "Use the common field-informed 45-mm maximum event depth.",
+      "fallback_layers": "Before DSSAT root-length weights become positive, use the top 30 cm (REW layers ending at 5, 10, 20 and 30 cm), consistent with an initial shallow cotton root zone; once roots are present the rule is root-length weighted."
+    },
+    "state_inputs": ["REW1", "REW2", "REW3", "REW4", "REW5", "REW6", "REW7", "REW8", "REW9", "REW10", "RL1D", "RL2D", "RL3D", "RL4D", "RL5D", "RL6D", "RL7D", "RL8D", "RL9D", "RL10D"]
+  },
+  "selection_policy": {
+    "tuned_on_validation": false,
+    "reason": "Parameters are fixed from field geometry/operations or external agronomic references before station final-test evaluation. Validation years are used for sanity/robustness checks, not parameter optimization.",
+    "change_rule": "Any change after observing 2023-2025 station outcomes requires a new baseline protocol and cannot replace v1 results."
+  }
+}
