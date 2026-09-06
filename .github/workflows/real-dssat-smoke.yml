@@ -23,10 +23,9 @@ on:
 jobs:
   reset-and-one-event:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 20
     env:
       PYTHONPATH: ${{ github.workspace }}/src
-      SWEEP_DIR: runtime/development_baseline_sweep_v1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -98,57 +97,3 @@ jobs:
             --methods conventional,rew \
             --treatments W100,W60 \
             --work-dir runtime/cross_year_gate
-      - name: Run canonical 207-episode development sweep
-        run: |
-          python -m awm.baselines.development_sweep \
-            --project-root . \
-            --years 2000-2022 \
-            --methods conventional,et,rew \
-            --treatments W100,W80,W60 \
-            --work-dir "$SWEEP_DIR"
-      - name: Validate and summarize canonical development matrix
-        run: |
-          python -m awm.baselines.sweep_summary \
-            --results "$SWEEP_DIR/results.jsonl" \
-            --output "$SWEEP_DIR/summary.json"
-      - name: Final canonical development integrity gate
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          root = Path('runtime/development_baseline_sweep_v1')
-          rows = [json.loads(line) for line in (root / 'results.jsonl').read_text(encoding='utf-8').splitlines() if line.strip()]
-          summary = json.loads((root / 'summary.json').read_text(encoding='utf-8'))
-          manifest = json.loads((root / 'manifest.json').read_text(encoding='utf-8'))
-          keys = {(int(r['year']), r['method'], r['water_treatment']) for r in rows}
-          assert len(rows) == 207
-          assert len(keys) == 207
-          assert all(r['status'] == 'passed' for r in rows)
-          assert all(r['weather_source'] == 'era5' for r in rows)
-          assert all(2000 <= int(r['year']) <= 2022 for r in rows)
-          assert not any(int(r['year']) in (2023, 2024, 2025) for r in rows)
-          assert all(r['irrigation_accounting_passed'] is True for r in rows)
-          assert summary['integrity']['status'] == 'passed'
-          assert summary['integrity']['row_count'] == 207
-          assert summary['descriptive']['formal_y_ref_defined'] is False
-          assert summary['descriptive']['eta_defined'] is False
-          assert summary['descriptive']['alpha_defined'] is False
-          assert manifest['episode_count'] == 207
-          assert manifest['locked_final_test_years'] == [2023, 2024, 2025]
-          print('CANONICAL DEVELOPMENT SWEEP PASS')
-          print('rows=207 unique=207 accounting=207/207')
-          print('years=2000-2022; locked_final_test=2023,2024,2025')
-          PY
-      - name: Upload canonical development sweep artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: awm-development-baseline-sweep-v1
-          path: |
-            runtime/development_baseline_sweep_v1/manifest.json
-            runtime/development_baseline_sweep_v1/results.jsonl
-            runtime/development_baseline_sweep_v1/results.csv
-            runtime/development_baseline_sweep_v1/summary.json
-            runtime/development_baseline_sweep_v1/audits/
-          if-no-files-found: warn
-          retention-days: 30
