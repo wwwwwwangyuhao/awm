@@ -161,17 +161,19 @@ def evaluate_checkpoint(
         if years != tuple(VALIDATION_YEARS):
             raise RuntimeError(f"incomplete validation group for eta={eta}: {years}")
         retentions = [item.yield_retention for item in group]
-        eta_metrics.append(
-            asdict(
-                EtaValidationMetrics(
-                    eta=float(eta),
-                    validation_years=years,
-                    lcvar_retention=empirical_lower_cvar(retentions, alpha=0.20),
-                    mean_total_irrigation_mm=mean(item.total_irrigation_mm for item in group),
-                    minimum_retention=min(retentions),
-                )
+        metric = asdict(
+            EtaValidationMetrics(
+                eta=float(eta),
+                validation_years=years,
+                lcvar_retention=empirical_lower_cvar(retentions, alpha=0.20),
+                mean_total_irrigation_mm=mean(item.total_irrigation_mm for item in group),
+                minimum_retention=min(retentions),
             )
         )
+        # ``build_candidate_from_report`` validates the serialized report contract,
+        # where JSON arrays must be represented as Python lists before encoding.
+        metric["validation_years"] = list(metric["validation_years"])
+        eta_metrics.append(metric)
 
     report = {
         "checkpoint_id": checkpoint_id,
