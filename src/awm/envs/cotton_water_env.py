@@ -180,6 +180,18 @@ class CottonWaterEnv:
                     "irrigation_accounting_difference_mm": (
                         terminal_audit.difference_mm
                     ),
+                    "irrigation_accounting_expected_ircm_mm": (
+                        terminal_audit.expected_ircm_mm
+                    ),
+                    "irrigation_accounting_expected_summary_ircm_mm": (
+                        terminal_audit.expected_summary_ircm_mm
+                    ),
+                    "irrigation_accounting_summary_difference_mm": (
+                        terminal_audit.summary_difference_mm
+                    ),
+                    "irrigation_summary_reporting_resolution_mm": (
+                        terminal_audit.summary_reporting_resolution_mm
+                    ),
                 }
             )
 

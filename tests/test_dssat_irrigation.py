@@ -129,6 +129,21 @@ def adapter():
     )
 
 
+def accounting_adapter(*, nonpolicy_irrigation_mm=45.0, tolerance_mm=0.1):
+    return DSSATIrrigationAdapter(
+        controller=FakeController(),
+        backend=FakeBackend(),
+        calendar=DSSATDecisionCalendar(
+            calendar_year=2023,
+            planting_doy=119,
+            horizon_days=5,
+        ),
+        execution_resolution_mm=0.1,
+        nonpolicy_irrigation_mm=nonpolicy_irrigation_mm,
+        summary_tolerance_mm=tolerance_mm,
+    )
+
+
 def test_calendar_preserves_d_plus_one_semantics():
     cal = DSSATDecisionCalendar(calendar_year=2023, planting_doy=119, horizon_days=5)
     d0 = cal.action_date(0)
@@ -199,6 +214,8 @@ def test_terminal_irrigation_reconciliation_uses_executed_policy_water():
     a.apply(policy_day=0, irrigate=True, amount_fraction=0.0)
     audit = a.reconcile_terminal_irrigation(dssat_ircm_mm=5.01)
     assert audit.policy_irrigation_mm == pytest.approx(5.0)
+    assert audit.expected_summary_ircm_mm == pytest.approx(5.0)
+    assert audit.summary_difference_mm == pytest.approx(0.01)
     assert audit.passed is True
 
 
@@ -218,6 +235,46 @@ def test_terminal_irrigation_reconciliation_supports_fixed_nonpolicy_water():
     a.apply(policy_day=0, irrigate=True, amount_fraction=0.0)
     audit = a.reconcile_terminal_irrigation(dssat_ircm_mm=25.0)
     assert audit.expected_ircm_mm == 25.0
+    assert audit.expected_summary_ircm_mm == 25.0
+
+
+def test_summary_ircm_rounding_accepts_539_7_reported_as_540():
+    a = accounting_adapter()
+    a.controller.used = 494.7
+    audit = a.reconcile_terminal_irrigation(dssat_ircm_mm=540.0)
+    assert audit.expected_ircm_mm == pytest.approx(539.7)
+    assert audit.expected_summary_ircm_mm == pytest.approx(540.0)
+    assert audit.difference_mm == pytest.approx(0.3)
+    assert audit.summary_difference_mm == pytest.approx(0.0)
+    assert audit.passed is True
+
+
+def test_summary_ircm_rounding_accepts_539_4_reported_as_539():
+    a = accounting_adapter()
+    a.controller.used = 494.4
+    audit = a.reconcile_terminal_irrigation(dssat_ircm_mm=539.0)
+    assert audit.expected_ircm_mm == pytest.approx(539.4)
+    assert audit.expected_summary_ircm_mm == pytest.approx(539.0)
+    assert audit.difference_mm == pytest.approx(-0.4)
+    assert audit.summary_difference_mm == pytest.approx(0.0)
+    assert audit.passed is True
+
+
+def test_summary_ircm_rounding_rejects_539_4_reported_as_540():
+    a = accounting_adapter()
+    a.controller.used = 494.4
+    with pytest.raises(RuntimeError, match="summary_difference=1.000000"):
+        a.reconcile_terminal_irrigation(dssat_ircm_mm=540.0)
+
+
+def test_summary_ircm_half_up_tie_matches_real_dssat_74_5_to_75():
+    a = accounting_adapter()
+    a.controller.used = 29.5
+    audit = a.reconcile_terminal_irrigation(dssat_ircm_mm=75.0)
+    assert audit.expected_ircm_mm == pytest.approx(74.5)
+    assert audit.expected_summary_ircm_mm == pytest.approx(75.0)
+    assert audit.summary_difference_mm == pytest.approx(0.0)
+    assert audit.passed is True
 
 
 def test_terminal_irrigation_mismatch_fails_fast():
