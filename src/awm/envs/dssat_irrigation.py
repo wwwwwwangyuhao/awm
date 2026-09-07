@@ -18,6 +18,8 @@ from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 import math
 from typing import Protocol, runtime_checkable
 
+from .ircm_reporting import accepted_summary_ircm_values, nearest_summary_ircm_value
+
 
 DSSAT_SUMMARY_IRCM_RESOLUTION_MM = 1.0
 
@@ -329,10 +331,12 @@ class DSSATIrrigationAdapter:
 
         ``dssat_ircm_mm`` must come from terminal ``Summary.OUT``. The exact
         controller/COX ledger is preserved for audit, but Summary.OUT's IRCM
-        field reports at 1-mm resolution. Empirical real-DSSAT probes confirm
-        ROUND_HALF_UP behavior, including 74.5 -> 75. Pass/fail therefore
-        compares the Summary value against the exact expected total transformed
-        into the same reporting domain; the configured tolerance is not widened.
+        field reports at 1-mm resolution. Formal runs show that exact half-mm
+        COX totals can be printed as either adjacent integer because DSSAT
+        accumulates decimal management events in binary real arithmetic before
+        formatting. Pass/fail therefore compares against the strict valid report
+        set after restoring the ledger to the execution grid; non-half bins are
+        not widened and the configured accounting tolerance is unchanged.
         """
 
         if self._faulted:
@@ -340,7 +344,14 @@ class DSSATIrrigationAdapter:
         _require_nonnegative("dssat_ircm_mm", dssat_ircm_mm)
         policy_mm = float(self.controller.used_mm)
         expected = self.nonpolicy_irrigation_mm + policy_mm
-        expected_summary = _quantize_summary_ircm(expected)
+        accepted_summary = accepted_summary_ircm_values(
+            expected,
+            execution_resolution_mm=self.execution_resolution_mm,
+            reporting_resolution_mm=DSSAT_SUMMARY_IRCM_RESOLUTION_MM,
+        )
+        expected_summary = nearest_summary_ircm_value(
+            float(dssat_ircm_mm), accepted_summary
+        )
         exact_difference = float(dssat_ircm_mm) - expected
         summary_difference = float(dssat_ircm_mm) - expected_summary
         passed = abs(summary_difference) <= self.summary_tolerance_mm
