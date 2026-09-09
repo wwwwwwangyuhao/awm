@@ -506,3 +506,22 @@ def test_v3_update_uses_td_credit_not_the_monte_carlo_risk_advantage():
     )
     assert float(credit.std(unbiased=False).item()) > 0.0
     assert not torch.allclose(credit, batch.risk_advantages.to(agent.device))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required for device regression")
+def test_tail_credit_telescoping_stays_on_cuda_device():
+    costs = torch.tensor([0.0, 0.4, 0.0, 0.7], dtype=torch.float64, device="cuda:0")
+    values = torch.tensor([0.2, 0.3, 0.1, 0.5], dtype=torch.float64, device="cuda:0")
+    dones = torch.tensor([False, True, False, True], device="cuda:0")
+    next_values = next_risk_values(values, dones)
+    credit = tail_td_credit(
+        costs=costs, values=values, next_values=next_values, dones=dones, gamma=1.0
+    )
+    achieved, expected = tail_credit_telescoping_terms(
+        credits=credit, costs=costs, values=values, dones=dones, gamma=1.0
+    )
+    assert achieved.device.type == "cuda"
+    assert expected.device.type == "cuda"
+    assert verify_tail_credit_telescoping(
+        credits=credit, costs=costs, values=values, dones=dones, gamma=1.0
+    ) < 1e-12

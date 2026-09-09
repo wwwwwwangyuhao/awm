@@ -122,11 +122,15 @@ def tail_credit_telescoping_terms(
     flat_costs = _flat(costs, dtype=torch.float64)
     flat_values = _flat(values, dtype=torch.float64)
     boundaries = episode_boundaries(dones)
-    achieved = torch.zeros(len(boundaries), dtype=torch.float64)
-    expected = torch.zeros(len(boundaries), dtype=torch.float64)
+    device = flat_credits.device
+    achieved = torch.zeros(len(boundaries), dtype=torch.float64, device=device)
+    expected = torch.zeros(len(boundaries), dtype=torch.float64, device=device)
     for position, (start, end) in enumerate(boundaries):
         length = end - start
-        weights = torch.pow(float(gamma), torch.arange(length, dtype=torch.float64))
+        weights = torch.pow(
+            float(gamma),
+            torch.arange(length, dtype=torch.float64, device=device),
+        )
         achieved[position] = torch.dot(weights, flat_credits[start:end])
         expected[position] = torch.dot(weights, flat_costs[start:end]) - flat_values[start]
     return achieved, expected
