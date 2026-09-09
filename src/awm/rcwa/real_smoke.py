@@ -1,4 +1,4 @@
-"""One untrained RCWA-RL v2 episode through the formal real-DSSAT stack."""
+"""One untrained RCWA episode through the formal real-DSSAT stack."""
 from __future__ import annotations
 
 import argparse
@@ -13,7 +13,16 @@ from awm.ppo.real_env import PPORealEnvFactory
 from awm.ppo.scheduler import WeatherEtaCell
 
 from .agent import RCWAAgent
+from .agent_v3 import RCWAV3Agent
 from .signals import RCWAEpisodeSignals
+
+
+def _smoke_protocol_spec(protocol_id: str):
+    if protocol_id == "awm-rcwa-rl-v2":
+        return RCWAAgent, "rcwa_rl_v2"
+    if protocol_id == "awm-rcwa-rl-v3":
+        return RCWAV3Agent, "rcwa_rl_v3"
+    raise ValueError("RCWA smoke protocol id mismatch")
 
 
 def _references(root: Path) -> dict[int, float]:
@@ -33,8 +42,8 @@ def run_real_rcwa_smoke(
 ) -> dict[str, object]:
     root = Path(project_root).expanduser().resolve()
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
-    if config.get("rcwa_protocol_id") != "awm-rcwa-rl-v2":
-        raise ValueError("RCWA smoke protocol id mismatch")
+    protocol_id = str(config.get("rcwa_protocol_id"))
+    agent_cls, runtime_subdir = _smoke_protocol_spec(protocol_id)
     if int(config["weather_year"]) != 2000 or config.get("weather_split") != "train":
         raise ValueError("formal RCWA smoke is locked to training year 2000")
     if bool(config.get("state_normalization", False)):
@@ -43,7 +52,7 @@ def run_real_rcwa_smoke(
     seed = int(config["seed"])
     eta = float(config["eta"])
     cell = WeatherEtaCell(2000, eta)
-    agent = RCWAAgent(seed=seed, device=str(config.get("device", "cpu")))
+    agent = agent_cls(seed=seed, device=str(config.get("device", "cpu")))
     normalizer = RunningObservationNormalizer(state_dim=agent.hparams.state_dim)
     tracker = RCWAEpisodeSignals(
         weather_year=2000,
@@ -52,7 +61,7 @@ def run_real_rcwa_smoke(
     )
     factory = PPORealEnvFactory(
         project_root=root,
-        work_dir=root / "runtime" / "rcwa_rl_v2" / "single_episode_smoke",
+        work_dir=root / "runtime" / runtime_subdir / "single_episode_smoke",
         runtime_base=runtime_base,
         env_idx=0,
     )
@@ -114,7 +123,7 @@ def run_real_rcwa_smoke(
 
     result = {
         "status": "passed",
-        "rcwa_protocol_id": "awm-rcwa-rl-v2",
+        "rcwa_protocol_id": protocol_id,
         "integration_smoke_only": True,
         "untrained_policy": True,
         "weather_year": 2000,
@@ -145,7 +154,7 @@ def run_real_rcwa_smoke(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run one untrained RCWA-RL v2 episode on real DSSAT")
+    parser = argparse.ArgumentParser(description="Run one untrained RCWA episode on real DSSAT")
     parser.add_argument("config")
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--runtime-base")
