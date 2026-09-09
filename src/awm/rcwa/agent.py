@@ -97,6 +97,10 @@ class RCWAUpdateStats:
 
 
 class RCWAAgent:
+    # Checkpoint protocol identity.  RCWA v3 subclasses override this so a v2
+    # payload can never be silently accepted as a v3 payload.
+    PROTOCOL_ID = "awm-rcwa-rl-v2"
+
     def __init__(
         self,
         *,
@@ -255,6 +259,26 @@ class RCWAAgent:
         }
         return combined, diagnostics
 
+    def _actor_risk_credit(
+        self,
+        *,
+        batch: RCWARolloutBatch,
+        states: torch.Tensor,
+        etas: torch.Tensor,
+    ) -> tuple[torch.Tensor, dict[str, object]]:
+        """Return the actor's tail-risk credit plus extra update diagnostics.
+
+        V2 uses the Monte-Carlo complete-episode risk advantage; with gamma=1
+        it is the same number ``h_i`` on every transition of an episode, which
+        is exactly the delayed-credit failure v3 addresses.  RCWA v3 overrides
+        this hook with a frozen one-step TD credit instead.
+        """
+        del states, etas
+        return batch.risk_advantages.to(self.device), {}
+
+    def _build_update_stats(self, fields: Mapping[str, object]) -> RCWAUpdateStats:
+        return RCWAUpdateStats(**fields)  # type: ignore[arg-type]
+
     def update(self, batch: RCWARolloutBatch) -> RCWAUpdateStats:
         if batch.policy_version != self.policy_version:
             raise RuntimeError(
@@ -272,11 +296,15 @@ class RCWAAgent:
         reward_returns = batch.reward_returns.to(self.device)
         risk_returns = batch.risk_returns.to(self.device)
         reward_adv = batch.reward_advantages.to(self.device)
-        risk_adv = batch.risk_advantages.to(self.device)
+        actor_risk_credit, credit_diagnostics = self._actor_risk_credit(
+            batch=batch,
+            states=states,
+            etas=etas,
+        )
 
         combined_adv, advantage_diagnostics = self._condition_actor_advantages(
             reward_adv=reward_adv,
-            risk_adv=risk_adv,
+            risk_adv=actor_risk_credit,
             etas=etas,
         )
         adv_mean = float(combined_adv.mean().item())
@@ -353,46 +381,48 @@ class RCWAAgent:
         old_version = self.policy_version
         self.policy_version += 1
         self.update_index += 1
-        return RCWAUpdateStats(
-            update_index=self.update_index,
-            rollout_policy_version=old_version,
-            new_policy_version=self.policy_version,
-            sample_count=n,
-            actor_loss=mean(actor_losses),
-            reward_value_loss=mean(reward_value_losses),
-            risk_value_loss=mean(risk_value_losses),
-            total_loss=mean(total_losses),
-            entropy=mean(entropies),
-            approx_kl=mean(approx_kls),
-            clip_fraction=mean(clip_fractions),
-            grad_norm=mean(actor_grad_norms),
-            actor_grad_norm=mean(actor_grad_norms),
-            reward_critic_grad_norm=mean(reward_critic_grad_norms),
-            risk_critic_grad_norm=mean(risk_critic_grad_norms),
-            combined_advantage_mean_after_conditioning=adv_mean,
-            combined_advantage_std_after_conditioning=adv_std,
-            reward_advantage_mean_before_conditioning=float(
+        fields: dict[str, object] = {
+            "update_index": self.update_index,
+            "rollout_policy_version": old_version,
+            "new_policy_version": self.policy_version,
+            "sample_count": n,
+            "actor_loss": mean(actor_losses),
+            "reward_value_loss": mean(reward_value_losses),
+            "risk_value_loss": mean(risk_value_losses),
+            "total_loss": mean(total_losses),
+            "entropy": mean(entropies),
+            "approx_kl": mean(approx_kls),
+            "clip_fraction": mean(clip_fractions),
+            "grad_norm": mean(actor_grad_norms),
+            "actor_grad_norm": mean(actor_grad_norms),
+            "reward_critic_grad_norm": mean(reward_critic_grad_norms),
+            "risk_critic_grad_norm": mean(risk_critic_grad_norms),
+            "combined_advantage_mean_after_conditioning": adv_mean,
+            "combined_advantage_std_after_conditioning": adv_std,
+            "reward_advantage_mean_before_conditioning": float(
                 advantage_diagnostics["reward_advantage_mean_before_conditioning"]
             ),
-            reward_advantage_std_before_conditioning=float(
+            "reward_advantage_std_before_conditioning": float(
                 advantage_diagnostics["reward_advantage_std_before_conditioning"]
             ),
-            risk_advantage_mean_before_conditioning_by_eta=dict(
+            "risk_advantage_mean_before_conditioning_by_eta": dict(
                 advantage_diagnostics["risk_advantage_mean_before_conditioning_by_eta"]
             ),
-            risk_advantage_std_before_conditioning_by_eta=dict(
+            "risk_advantage_std_before_conditioning_by_eta": dict(
                 advantage_diagnostics["risk_advantage_std_before_conditioning_by_eta"]
             ),
-            dual_before=dual_before,
-            dual_after=dual_after,
-            tau_by_eta=tau,
-            lcvar_by_eta=lcvar,
-            violation_by_eta=violation,
-        )
+            "dual_before": dual_before,
+            "dual_after": dual_after,
+            "tau_by_eta": tau,
+            "lcvar_by_eta": lcvar,
+            "violation_by_eta": violation,
+        }
+        fields.update(credit_diagnostics)
+        return self._build_update_stats(fields)
 
     def checkpoint_payload(self) -> dict[str, object]:
         return {
-            "protocol_id": "awm-rcwa-rl-v2",
+            "protocol_id": self.PROTOCOL_ID,
             "seed": self.seed,
             "policy_version": self.policy_version,
             "update_index": self.update_index,
@@ -406,7 +436,7 @@ class RCWAAgent:
         }
 
     def load_checkpoint_payload(self, payload: Mapping[str, object]) -> None:
-        if payload.get("protocol_id") != "awm-rcwa-rl-v2":
+        if payload.get("protocol_id") != self.PROTOCOL_ID:
             raise ValueError("checkpoint protocol_id mismatch")
         if int(payload.get("seed", -1)) != self.seed:
             raise ValueError("checkpoint seed does not match agent seed")

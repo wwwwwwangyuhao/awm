@@ -35,15 +35,21 @@ def _git_head(root: Path) -> str:
     return value
 
 
+DEFAULT_PROTOCOL_RELATIVE_PATH = "configs/rcwa_rl_v2.json"
+DEFAULT_MANIFEST_ID = "awm-rcwa-run-manifest-v2"
+
+
 def build_run_manifest(
     *,
     project_root: str | Path,
     protocol: dict[str, Any],
     seed: int,
     device: torch.device,
+    protocol_relative_path: str = DEFAULT_PROTOCOL_RELATIVE_PATH,
+    manifest_id: str = DEFAULT_MANIFEST_ID,
 ) -> dict[str, Any]:
     root = Path(project_root).expanduser().resolve()
-    protocol_path = root / "configs" / "rcwa_rl_v2.json"
+    protocol_path = root / protocol_relative_path
     executable = root / "dssat_workspace_template" / CUSTOM_DSSAT_EXECUTABLE
     if not protocol_path.is_file():
         raise FileNotFoundError(protocol_path)
@@ -58,7 +64,7 @@ def build_run_manifest(
         device_index = None
         device_name = f"cpu:{platform.machine()}"
     return {
-        "manifest_id": "awm-rcwa-run-manifest-v2",
+        "manifest_id": str(manifest_id),
         "rcwa_protocol_id": str(protocol["rcwa_protocol_id"]),
         "git_commit": _git_head(root),
         "training_seed": int(seed),

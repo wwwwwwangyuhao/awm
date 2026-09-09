@@ -23,8 +23,8 @@ PROTOCOL_PATH = "configs/rcwa_rl_v2.json"
 REFERENCE_PATH = "configs/yield_reference_v1_development.json"
 
 
-def _load_protocol(root: Path) -> dict[str, Any]:
-    return json.loads((root / PROTOCOL_PATH).read_text(encoding="utf-8"))
+def _load_protocol(root: Path, relative_path: str = PROTOCOL_PATH) -> dict[str, Any]:
+    return json.loads((root / relative_path).read_text(encoding="utf-8"))
 
 
 def _load_references(root: Path) -> dict[int, float]:
@@ -66,6 +66,14 @@ def hyperparameters_from_protocol(protocol: dict[str, Any]) -> RCWAHyperparamete
 
 
 class RCWATrainer:
+    # Version identity.  RCWA v3 subclasses override these so v2 and v3 runs
+    # never share a protocol file, a runtime directory or a checkpoint payload.
+    PROTOCOL_RELPATH = PROTOCOL_PATH
+    TRAINER_PROTOCOL_ID = "awm-rcwa-trainer-v2"
+    RUNTIME_SUBDIR = "rcwa_rl_v2"
+    MANIFEST_ID = "awm-rcwa-run-manifest-v2"
+    AGENT_CLS = RCWAAgent
+
     def __init__(
         self,
         *,
@@ -76,19 +84,19 @@ class RCWATrainer:
         runtime_base: str | Path | None = None,
     ) -> None:
         self.root = Path(project_root).expanduser().resolve()
-        self.protocol = _load_protocol(self.root)
+        self.protocol = _load_protocol(self.root, self.PROTOCOL_RELPATH)
         registered_seeds = tuple(int(x) for x in self.protocol["training"]["seeds"])
         if int(seed) not in registered_seeds:
             raise ValueError(f"seed must be one of preregistered values {registered_seeds}")
         self.seed = int(seed)
         self.references = _load_references(self.root)
-        self.hparams = hyperparameters_from_protocol(self.protocol)
-        self.agent = RCWAAgent(hyperparameters=self.hparams, seed=self.seed, device=device)
+        self.hparams = self.hyperparameters_from_protocol(self.protocol)
+        self.agent = self.AGENT_CLS(hyperparameters=self.hparams, seed=self.seed, device=device)
         self.normalizer = RunningObservationNormalizer(state_dim=self.hparams.state_dim)
         self.output_dir = (
             Path(output_dir).expanduser().resolve()
             if output_dir is not None
-            else (self.root / "runtime" / "rcwa_rl_v2" / f"seed_{self.seed}").resolve()
+            else (self.root / "runtime" / self.RUNTIME_SUBDIR / f"seed_{self.seed}").resolve()
         )
         try:
             self.output_dir.relative_to(self.root)
@@ -100,6 +108,8 @@ class RCWATrainer:
             protocol=self.protocol,
             seed=self.seed,
             device=self.agent.device,
+            protocol_relative_path=self.PROTOCOL_RELPATH,
+            manifest_id=self.MANIFEST_ID,
         )
         self.run_manifest_path = ensure_run_manifest(
             self.output_dir / "run_manifest.json",
@@ -118,6 +128,10 @@ class RCWATrainer:
         self.validation_dir.mkdir(parents=True, exist_ok=True)
         self.recovery_checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.candidate_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def hyperparameters_from_protocol(protocol: dict[str, Any]) -> RCWAHyperparameters:
+        return hyperparameters_from_protocol(protocol)
 
     @property
     def transition_count(self) -> int:
@@ -177,7 +191,7 @@ class RCWATrainer:
     def _checkpoint_payload(self) -> dict[str, object]:
         state = self.normalizer.state()
         return {
-            "trainer_protocol_id": "awm-rcwa-trainer-v2",
+            "trainer_protocol_id": self.TRAINER_PROTOCOL_ID,
             "run_manifest": self.run_manifest,
             "agent": self.agent.checkpoint_payload(),
             "normalizer": asdict(state),
@@ -209,7 +223,7 @@ class RCWATrainer:
 
     def load_checkpoint(self, path: str | Path) -> None:
         payload = torch.load(Path(path), map_location=self.agent.device, weights_only=False)
-        if payload.get("trainer_protocol_id") != "awm-rcwa-trainer-v2":
+        if payload.get("trainer_protocol_id") != self.TRAINER_PROTOCOL_ID:
             raise ValueError("trainer checkpoint protocol mismatch")
         if payload.get("run_manifest") != self.run_manifest:
             raise ValueError("checkpoint run manifest does not match current formal run provenance")
