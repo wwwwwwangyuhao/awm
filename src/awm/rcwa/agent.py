@@ -1,4 +1,4 @@
-"""Strictly on-policy lower-CVaR primal-dual PPO agent for RCWA-RL v1."""
+"""Strictly on-policy stabilized lower-CVaR primal-dual PPO agent for RCWA-RL v2."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -80,8 +80,15 @@ class RCWAUpdateStats:
     approx_kl: float
     clip_fraction: float
     grad_norm: float
-    combined_advantage_mean_before_normalization: float
-    combined_advantage_std_before_normalization: float
+    actor_grad_norm: float
+    reward_critic_grad_norm: float
+    risk_critic_grad_norm: float
+    combined_advantage_mean_after_conditioning: float
+    combined_advantage_std_after_conditioning: float
+    reward_advantage_mean_before_conditioning: float
+    reward_advantage_std_before_conditioning: float
+    risk_advantage_mean_before_conditioning_by_eta: dict[str, float]
+    risk_advantage_std_before_conditioning_by_eta: dict[str, float]
     dual_before: dict[str, float]
     dual_after: dict[str, float]
     tau_by_eta: dict[str, float]
@@ -117,6 +124,11 @@ class RCWAAgent:
             state_dim=self.hparams.state_dim,
             hidden_dims=self.hparams.risk_critic_hidden_dims,
         ).to(self.device)
+        # V2 stabilization: the extra risk baseline must not inject a random
+        # action-correlated signal into the very first primal update.  The
+        # actor and reward critic still exactly match PPO initialization.
+        torch.nn.init.zeros_(self.risk_critic.value_head.weight)
+        torch.nn.init.zeros_(self.risk_critic.value_head.bias)
         self.critic = self.reward_critic
         self.optimizer = torch.optim.Adam(
             list(self.actor.parameters())
@@ -185,6 +197,64 @@ class RCWAAgent:
             violation[key] = g
         return before, after, tau, lcvar, violation
 
+    @staticmethod
+    def _standardize(values: torch.Tensor) -> tuple[torch.Tensor, float, float]:
+        mean_value = values.mean()
+        std_value = values.std(unbiased=False)
+        normalized = (values - mean_value) / (std_value + 1e-8)
+        return normalized, float(mean_value.item()), float(std_value.item())
+
+    def _condition_actor_advantages(
+        self,
+        *,
+        reward_adv: torch.Tensor,
+        risk_adv: torch.Tensor,
+        etas: torch.Tensor,
+    ) -> tuple[torch.Tensor, dict[str, object]]:
+        """Condition reward/risk components without erasing dual scale.
+
+        V1 standardized the already dual-weighted combined advantage.  That
+        made a larger lambda change direction but largely removed its intended
+        scale effect.  V2 standardizes each component first, with the sparse
+        tail-risk component standardized independently inside each eta group,
+        and then applies the frozen eta-specific dual multiplier.
+        """
+        reward_z, reward_mean, reward_std = self._standardize(reward_adv)
+        risk_z = torch.empty_like(risk_adv)
+        risk_mean_by_eta: dict[str, float] = {}
+        risk_std_by_eta: dict[str, float] = {}
+        matched = torch.zeros_like(etas, dtype=torch.bool, device=etas.device)
+        for eta in REGISTERED_ETA_LEVELS:
+            eta_value = float(eta)
+            key = f"{eta_value:.2f}"
+            mask = torch.isclose(
+                etas,
+                torch.tensor(eta_value, dtype=etas.dtype, device=etas.device),
+                atol=1e-6,
+                rtol=0.0,
+            )
+            if not bool(mask.any().item()):
+                raise RuntimeError(f"missing transitions for eta={key}")
+            group_z, group_mean, group_std = self._standardize(risk_adv[mask])
+            risk_z[mask] = group_z
+            risk_mean_by_eta[key] = group_mean
+            risk_std_by_eta[key] = group_std
+            matched |= mask
+        if not bool(matched.all().item()):
+            raise ValueError("batch contains unregistered eta values")
+
+        lambda_per_transition = self._lambda_tensor(etas)
+        combined = reward_z - lambda_per_transition * risk_z
+        diagnostics: dict[str, object] = {
+            "reward_advantage_mean_before_conditioning": reward_mean,
+            "reward_advantage_std_before_conditioning": reward_std,
+            "risk_advantage_mean_before_conditioning_by_eta": risk_mean_by_eta,
+            "risk_advantage_std_before_conditioning_by_eta": risk_std_by_eta,
+            "combined_advantage_mean_after_conditioning": float(combined.mean().item()),
+            "combined_advantage_std_after_conditioning": float(combined.std(unbiased=False).item()),
+        }
+        return combined, diagnostics
+
     def update(self, batch: RCWARolloutBatch) -> RCWAUpdateStats:
         if batch.policy_version != self.policy_version:
             raise RuntimeError(
@@ -204,11 +274,13 @@ class RCWAAgent:
         reward_adv = batch.reward_advantages.to(self.device)
         risk_adv = batch.risk_advantages.to(self.device)
 
-        lambda_per_transition = self._lambda_tensor(etas)
-        combined_adv = reward_adv - lambda_per_transition * risk_adv
+        combined_adv, advantage_diagnostics = self._condition_actor_advantages(
+            reward_adv=reward_adv,
+            risk_adv=risk_adv,
+            etas=etas,
+        )
         adv_mean = float(combined_adv.mean().item())
         adv_std = float(combined_adv.std(unbiased=False).item())
-        combined_adv = (combined_adv - combined_adv.mean()) / (combined_adv.std(unbiased=False) + 1e-8)
 
         actor_losses: list[float] = []
         reward_value_losses: list[float] = []
@@ -217,8 +289,12 @@ class RCWAAgent:
         entropies: list[float] = []
         approx_kls: list[float] = []
         clip_fractions: list[float] = []
-        grad_norms: list[float] = []
-        parameters = list(self.actor.parameters()) + list(self.reward_critic.parameters()) + list(self.risk_critic.parameters())
+        actor_grad_norms: list[float] = []
+        reward_critic_grad_norms: list[float] = []
+        risk_critic_grad_norms: list[float] = []
+        actor_parameters = list(self.actor.parameters())
+        reward_critic_parameters = list(self.reward_critic.parameters())
+        risk_critic_parameters = list(self.risk_critic.parameters())
 
         for _epoch in range(self.hparams.update_epochs):
             permutation = torch.randperm(n, generator=self.generator, device=self.device)
@@ -243,7 +319,17 @@ class RCWAAgent:
                     raise FloatingPointError("RCWA loss became NaN/Inf")
                 self.optimizer.zero_grad(set_to_none=True)
                 total_loss.backward()
-                grad_norm = torch.nn.utils.clip_grad_norm_(parameters, self.hparams.max_grad_norm)
+                # V2 clips the actor and the two critics independently so a
+                # transient critic spike cannot globally shrink the actor step.
+                actor_grad_norm = torch.nn.utils.clip_grad_norm_(
+                    actor_parameters, self.hparams.max_grad_norm
+                )
+                reward_critic_grad_norm = torch.nn.utils.clip_grad_norm_(
+                    reward_critic_parameters, self.hparams.max_grad_norm
+                )
+                risk_critic_grad_norm = torch.nn.utils.clip_grad_norm_(
+                    risk_critic_parameters, self.hparams.max_grad_norm
+                )
                 self.optimizer.step()
                 with torch.no_grad():
                     approx_kl = ((ratio - 1.0) - log_ratio).mean()
@@ -255,7 +341,13 @@ class RCWAAgent:
                 entropies.append(float(entropy_mean.detach().item()))
                 approx_kls.append(float(approx_kl.detach().item()))
                 clip_fractions.append(float(clip_fraction.detach().item()))
-                grad_norms.append(float(torch.as_tensor(grad_norm).detach().item()))
+                actor_grad_norms.append(float(torch.as_tensor(actor_grad_norm).detach().item()))
+                reward_critic_grad_norms.append(
+                    float(torch.as_tensor(reward_critic_grad_norm).detach().item())
+                )
+                risk_critic_grad_norms.append(
+                    float(torch.as_tensor(risk_critic_grad_norm).detach().item())
+                )
 
         dual_before, dual_after, tau, lcvar, violation = self._dual_update(batch)
         old_version = self.policy_version
@@ -273,9 +365,24 @@ class RCWAAgent:
             entropy=mean(entropies),
             approx_kl=mean(approx_kls),
             clip_fraction=mean(clip_fractions),
-            grad_norm=mean(grad_norms),
-            combined_advantage_mean_before_normalization=adv_mean,
-            combined_advantage_std_before_normalization=adv_std,
+            grad_norm=mean(actor_grad_norms),
+            actor_grad_norm=mean(actor_grad_norms),
+            reward_critic_grad_norm=mean(reward_critic_grad_norms),
+            risk_critic_grad_norm=mean(risk_critic_grad_norms),
+            combined_advantage_mean_after_conditioning=adv_mean,
+            combined_advantage_std_after_conditioning=adv_std,
+            reward_advantage_mean_before_conditioning=float(
+                advantage_diagnostics["reward_advantage_mean_before_conditioning"]
+            ),
+            reward_advantage_std_before_conditioning=float(
+                advantage_diagnostics["reward_advantage_std_before_conditioning"]
+            ),
+            risk_advantage_mean_before_conditioning_by_eta=dict(
+                advantage_diagnostics["risk_advantage_mean_before_conditioning_by_eta"]
+            ),
+            risk_advantage_std_before_conditioning_by_eta=dict(
+                advantage_diagnostics["risk_advantage_std_before_conditioning_by_eta"]
+            ),
             dual_before=dual_before,
             dual_after=dual_after,
             tau_by_eta=tau,
@@ -285,7 +392,7 @@ class RCWAAgent:
 
     def checkpoint_payload(self) -> dict[str, object]:
         return {
-            "protocol_id": "awm-rcwa-rl-v1",
+            "protocol_id": "awm-rcwa-rl-v2",
             "seed": self.seed,
             "policy_version": self.policy_version,
             "update_index": self.update_index,
@@ -299,7 +406,7 @@ class RCWAAgent:
         }
 
     def load_checkpoint_payload(self, payload: Mapping[str, object]) -> None:
-        if payload.get("protocol_id") != "awm-rcwa-rl-v1":
+        if payload.get("protocol_id") != "awm-rcwa-rl-v2":
             raise ValueError("checkpoint protocol_id mismatch")
         if int(payload.get("seed", -1)) != self.seed:
             raise ValueError("checkpoint seed does not match agent seed")

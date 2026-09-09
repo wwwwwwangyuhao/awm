@@ -1,4 +1,4 @@
-"""Exact empirical lower-CVaR batch semantics for RCWA-RL v1."""
+"""Exact empirical lower-CVaR batch semantics for RCWA-RL v2."""
 from __future__ import annotations
 
 from dataclasses import dataclass

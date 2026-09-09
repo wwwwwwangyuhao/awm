@@ -1,4 +1,4 @@
-"""RCWA-RL v1: conditional lower-CVaR primal-dual irrigation RL."""
+"""RCWA-RL v2: stabilized conditional lower-CVaR primal-dual irrigation RL."""
 
 from .agent import RCWAAgent, RCWAHyperparameters, RCWAUpdateStats
 from .buffer import RCWARolloutBatch, RCWARolloutBuffer

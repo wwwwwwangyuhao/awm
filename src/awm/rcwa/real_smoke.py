@@ -1,4 +1,4 @@
-"""One untrained RCWA-RL episode through the formal real-DSSAT stack."""
+"""One untrained RCWA-RL v2 episode through the formal real-DSSAT stack."""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +33,7 @@ def run_real_rcwa_smoke(
 ) -> dict[str, object]:
     root = Path(project_root).expanduser().resolve()
     config = json.loads(Path(config_path).read_text(encoding="utf-8"))
-    if config.get("rcwa_protocol_id") != "awm-rcwa-rl-v1":
+    if config.get("rcwa_protocol_id") != "awm-rcwa-rl-v2":
         raise ValueError("RCWA smoke protocol id mismatch")
     if int(config["weather_year"]) != 2000 or config.get("weather_split") != "train":
         raise ValueError("formal RCWA smoke is locked to training year 2000")
@@ -52,7 +52,7 @@ def run_real_rcwa_smoke(
     )
     factory = PPORealEnvFactory(
         project_root=root,
-        work_dir=root / "runtime" / "rcwa_rl_v1" / "single_episode_smoke",
+        work_dir=root / "runtime" / "rcwa_rl_v2" / "single_episode_smoke",
         runtime_base=runtime_base,
         env_idx=0,
     )
@@ -114,7 +114,7 @@ def run_real_rcwa_smoke(
 
     result = {
         "status": "passed",
-        "rcwa_protocol_id": "awm-rcwa-rl-v1",
+        "rcwa_protocol_id": "awm-rcwa-rl-v2",
         "integration_smoke_only": True,
         "untrained_policy": True,
         "weather_year": 2000,
@@ -145,7 +145,7 @@ def run_real_rcwa_smoke(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run one untrained RCWA-RL episode on real DSSAT")
+    parser = argparse.ArgumentParser(description="Run one untrained RCWA-RL v2 episode on real DSSAT")
     parser.add_argument("config")
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--runtime-base")

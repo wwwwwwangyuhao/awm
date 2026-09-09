@@ -1,0 +1,11 @@
+{
+  "status": "rcwa_v2_integration_smoke_only",
+  "rcwa_protocol_id": "awm-rcwa-rl-v2",
+  "weather_year": 2000,
+  "weather_split": "train",
+  "eta": 0.95,
+  "seed": 21,
+  "device": "cpu",
+  "state_normalization": false,
+  "note": "One untrained v2 actor episode verifies actor/action/DSSAT/retention bookkeeping only. Lower-CVaR requires the balanced 54-cell update gate."
+}

@@ -1,4 +1,4 @@
-"""Immutable provenance manifest for formal RCWA-RL runs."""
+"""Immutable provenance manifest for formal RCWA-RL v2 runs."""
 from __future__ import annotations
 
 import hashlib
@@ -43,7 +43,7 @@ def build_run_manifest(
     device: torch.device,
 ) -> dict[str, Any]:
     root = Path(project_root).expanduser().resolve()
-    protocol_path = root / "configs" / "rcwa_rl_v1.json"
+    protocol_path = root / "configs" / "rcwa_rl_v2.json"
     executable = root / "dssat_workspace_template" / CUSTOM_DSSAT_EXECUTABLE
     if not protocol_path.is_file():
         raise FileNotFoundError(protocol_path)
@@ -58,7 +58,7 @@ def build_run_manifest(
         device_index = None
         device_name = f"cpu:{platform.machine()}"
     return {
-        "manifest_id": "awm-rcwa-run-manifest-v1",
+        "manifest_id": "awm-rcwa-run-manifest-v2",
         "rcwa_protocol_id": str(protocol["rcwa_protocol_id"]),
         "git_commit": _git_head(root),
         "training_seed": int(seed),

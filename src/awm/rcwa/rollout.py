@@ -1,4 +1,4 @@
-"""Balanced real-environment rollout collection for RCWA-RL v1."""
+"""Balanced real-environment rollout collection for RCWA-RL v2."""
 from __future__ import annotations
 
 from dataclasses import dataclass

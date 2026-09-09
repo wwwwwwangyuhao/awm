@@ -1,4 +1,4 @@
-"""Balanced complete-episode rollout storage for RCWA-RL v1."""
+"""Balanced complete-episode rollout storage for RCWA-RL v2."""
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,4 +1,4 @@
-"""Sequential, resumable real-DSSAT trainer for RCWA-RL v1."""
+"""Sequential, resumable real-DSSAT trainer for RCWA-RL v2."""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +19,7 @@ from .provenance import build_run_manifest, ensure_run_manifest
 from .rollout import collect_balanced_training_rollout
 
 
-PROTOCOL_PATH = "configs/rcwa_rl_v1.json"
+PROTOCOL_PATH = "configs/rcwa_rl_v2.json"
 REFERENCE_PATH = "configs/yield_reference_v1_development.json"
 
 
@@ -88,7 +88,7 @@ class RCWATrainer:
         self.output_dir = (
             Path(output_dir).expanduser().resolve()
             if output_dir is not None
-            else (self.root / "runtime" / "rcwa_rl_v1" / f"seed_{self.seed}").resolve()
+            else (self.root / "runtime" / "rcwa_rl_v2" / f"seed_{self.seed}").resolve()
         )
         try:
             self.output_dir.relative_to(self.root)
@@ -177,7 +177,7 @@ class RCWATrainer:
     def _checkpoint_payload(self) -> dict[str, object]:
         state = self.normalizer.state()
         return {
-            "trainer_protocol_id": "awm-rcwa-trainer-v1",
+            "trainer_protocol_id": "awm-rcwa-trainer-v2",
             "run_manifest": self.run_manifest,
             "agent": self.agent.checkpoint_payload(),
             "normalizer": asdict(state),
@@ -209,7 +209,7 @@ class RCWATrainer:
 
     def load_checkpoint(self, path: str | Path) -> None:
         payload = torch.load(Path(path), map_location=self.agent.device, weights_only=False)
-        if payload.get("trainer_protocol_id") != "awm-rcwa-trainer-v1":
+        if payload.get("trainer_protocol_id") != "awm-rcwa-trainer-v2":
             raise ValueError("trainer checkpoint protocol mismatch")
         if payload.get("run_manifest") != self.run_manifest:
             raise ValueError("checkpoint run manifest does not match current formal run provenance")
@@ -253,7 +253,7 @@ class RCWATrainer:
         candidate_interval = int(self.protocol["training"]["candidate_checkpoint_interval_updates"])
         validation_interval = int(self.protocol["training"]["validation_interval_updates"])
         if candidate_interval != validation_interval:
-            raise RuntimeError("candidate and validation cadence must match in RCWA Protocol v1")
+            raise RuntimeError("candidate and validation cadence must match in RCWA Protocol v2")
         validation_reports: list[str] = []
         candidate_checkpoints: list[str] = []
         last_recovery_checkpoint: str | None = None
@@ -280,7 +280,7 @@ class RCWATrainer:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Train AWM RCWA-RL v1 on real DSSAT")
+    parser = argparse.ArgumentParser(description="Train AWM RCWA-RL v2 on real DSSAT")
     parser.add_argument("--project-root", default=".")
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--device", default="cpu")
