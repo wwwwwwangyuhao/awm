@@ -1,4 +1,4 @@
-"""RCWA-RL v2 (stabilized conditional lower-CVaR primal-dual PPO) and v3 (frozen one-step tail TD credit)."""
+"""RCWA-RL v2-v4 risk-aware irrigation agents."""
 
 from .agent import RCWAAgent, RCWAHyperparameters, RCWAUpdateStats
 from .agent_v3 import (
@@ -6,6 +6,13 @@ from .agent_v3 import (
     RCWAV3Hyperparameters,
     RCWAV3UpdateStats,
     V3_PROTOCOL_ID,
+)
+from .agent_v4 import (
+    RCWAV4Agent,
+    RCWAV4Hyperparameters,
+    RCWAV4UpdateStats,
+    TailActionValueNetwork,
+    V4_PROTOCOL_ID,
 )
 from .buffer import RCWARolloutBatch, RCWARolloutBuffer
 from .risk_batch import (
@@ -38,6 +45,11 @@ __all__ = [
     "RCWAV3Hyperparameters",
     "RCWAV3UpdateStats",
     "V3_PROTOCOL_ID",
+    "RCWAV4Agent",
+    "RCWAV4Hyperparameters",
+    "RCWAV4UpdateStats",
+    "TailActionValueNetwork",
+    "V4_PROTOCOL_ID",
     "empirical_lower_quantile",
     "episode_boundaries",
     "episode_step_indices",
