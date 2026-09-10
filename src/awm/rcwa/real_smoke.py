@@ -15,6 +15,7 @@ from awm.ppo.scheduler import WeatherEtaCell
 from .agent import RCWAAgent
 from .agent_v3 import RCWAV3Agent
 from .agent_v4 import RCWAV4Agent
+from .agent_v5 import RCWAV5Agent
 from .signals import RCWAEpisodeSignals
 
 
@@ -25,6 +26,8 @@ def _smoke_protocol_spec(protocol_id: str):
         return RCWAV3Agent, "rcwa_rl_v3"
     if protocol_id == "awm-rcwa-rl-v4":
         return RCWAV4Agent, "rcwa_rl_v4"
+    if protocol_id == "awm-rcwa-rl-v5":
+        return RCWAV5Agent, "rcwa_rl_v5"
     raise ValueError("RCWA smoke protocol id mismatch")
 
 
