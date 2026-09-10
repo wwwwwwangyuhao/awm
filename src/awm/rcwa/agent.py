@@ -454,7 +454,13 @@ class RCWAAgent:
         self.dual_by_eta = restored
         self.policy_version = int(payload["policy_version"])
         self.update_index = int(payload["update_index"])
-        self.generator.set_state(payload["generator_state"])
+        generator_state = payload["generator_state"]
+        if not isinstance(generator_state, torch.Tensor):
+            raise TypeError("checkpoint generator_state must be a torch.Tensor")
+        # torch.load(..., map_location=cuda) also moves ByteTensor payload
+        # fields to CUDA, while torch.Generator.set_state requires the RNG
+        # state bytes on CPU.  This conversion preserves the exact RNG state.
+        self.generator.set_state(generator_state.detach().cpu())
 
 
 __all__ = ["RCWAAgent", "RCWAHyperparameters", "RCWAUpdateStats"]
