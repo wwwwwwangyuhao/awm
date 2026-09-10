@@ -1,0 +1,214 @@
+{
+  "rcwa_protocol_id": "awm-rcwa-rl-v6",
+  "supersedes": "awm-rcwa-rl-v4",
+  "status": "development_after_rcwa_v3_action_timing_forensic",
+  "algorithm": "conditional_lower_cvar_primal_dual_ppo_action_conditioned_tail_q_credit",
+  "base_contracts": {
+    "agricultural": "awm-agricultural-v1",
+    "risk": "awm-risk-contract-v1",
+    "evaluation": "awm-learned-method-evaluation-v1",
+    "ppo_fairness_reference": "awm-ppo-baseline-v1"
+  },
+  "environment": {
+    "observation_dim": 79,
+    "policy_water_budget_mm": 495.0,
+    "fixed_preplant_irrigation_mm": 45.0,
+    "training_years": [
+      2000,
+      2001,
+      2002,
+      2003,
+      2004,
+      2005,
+      2006,
+      2007,
+      2008,
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017
+    ],
+    "validation_years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022
+    ],
+    "locked_final_test_station_years": [
+      2023,
+      2024,
+      2025
+    ],
+    "eta_levels": [
+      0.9,
+      0.95,
+      0.98
+    ]
+  },
+  "policy": {
+    "single_conditional_policy": true,
+    "hierarchical_action": "Bernoulli irrigation gate plus active-only tanh-Gaussian amount_fraction",
+    "exact_noop": true,
+    "actor_hidden_dims": [
+      256,
+      128
+    ],
+    "reward_critic_hidden_dims": [
+      256,
+      128
+    ],
+    "risk_critic_hidden_dims": [
+      256,
+      128
+    ],
+    "activation": "tanh",
+    "layer_norm": true,
+    "actor_critic_parameter_sharing": false,
+    "fairness_rule": "Actor, reward critic and state-value risk critic architecture/initialization remain exactly as RCWA v3. V4 adds one risk-specific scalar action-value critic Q_tail(s,a), with the same (256,128) hidden widths as the existing risk critic and a zero-initialized output head. It receives no extra environment interaction.",
+    "risk_critic_output_initialization": "zero_value_head"
+  },
+  "objective": {
+    "step_reward": "- executed_policy_irrigation_mm / 495",
+    "terminal_reward": 0.0,
+    "episode_water_return": "- I_policy / 495",
+    "primary": "maximize expected water return, equivalently minimize expected controllable postplant irrigation"
+  },
+  "risk_constraint": {
+    "retention": "R = HWAM / Y_ref(weather_year)",
+    "alpha": 0.2,
+    "constraint": "LCVaR_0.20(R | eta) >= eta",
+    "grouping": "Each eta is estimated independently from exactly 18 equally weighted training weather-year episodes per update.",
+    "representation": "LCVaR_alpha(R)=sup_tau[tau-(1/alpha)E[(tau-R)_+]]",
+    "tau_estimator": "For each eta and update, tau is the empirical lower-alpha quantile: the ceil(alpha*n)-th smallest retention. With n=18 and alpha=0.20 this is the fourth-smallest retention.",
+    "tau_learning": false,
+    "tau_stop_gradient": true,
+    "actor_risk_terminal_signal": "h=(1/alpha)*max(tau-R,0) (unchanged from RCWA v1)",
+    "actor_risk_constant_omitted": "The eta-tau term is constant with respect to the action distribution when tau is frozen at the batch optimum; by the envelope argument it is omitted from the actor/risk-critic return to avoid score-function variance.",
+    "dual_violation": "g_eta = eta - empirical_LCVaR_alpha(R | eta)",
+    "exact_contract_check": "The Rockafellar-Uryasev value at empirical tau must numerically equal the exact fractional order-statistic estimator from awm-risk-contract-v1.",
+    "not_expected_constraint": true,
+    "not_pooled_across_eta": true,
+    "v2_semantics_preserved": true
+  },
+  "lagrangian": {
+    "dual_initial_value": 1.0,
+    "dual_learning_rate": 0.05,
+    "dual_projection": "max(0, lambda + lr * g_eta)",
+    "eta_specific_duals": true,
+    "primal_order": "Freeze lambda_k, tau_k and all tail assignments for the complete PPO update; update actor/reward critic/risk critic; then update duals to lambda_{k+1}.",
+    "extra_environment_episodes": 0
+  },
+  "optimizer": {
+    "name": "Adam",
+    "learning_rate": 0.0001,
+    "adam_beta1": 0.9,
+    "adam_beta2": 0.999,
+    "adam_eps": 1e-08,
+    "gamma": 1.0,
+    "gae_lambda": 1.0,
+    "risk_gamma": 1.0,
+    "risk_gae_lambda": 1.0,
+    "clip_epsilon": 0.2,
+    "update_epochs": 10,
+    "minibatch_size": 450,
+    "reward_value_loss_coefficient": 0.5,
+    "risk_value_loss_coefficient": 0.5,
+    "entropy_coefficient": 0.0,
+    "max_grad_norm": 0.5,
+    "combined_actor_advantage": "z_global(A_reward) - lambda_eta * z_within_eta(A_tail_risk)",
+    "advantage_normalization": "standardize reward and tail-risk components before dual weighting; do not standardize the combined advantage after applying lambda",
+    "risk_advantage_conditioning": "standardize A_tail_risk independently within each eta group so collapsed low-retention batches retain directional tail contrast",
+    "gradient_clipping": "clip actor, reward critic, and risk critic parameter groups independently at max_grad_norm=0.5 before the shared Adam step",
+    "v2_rationale": "Preserve exact lower-CVaR/RU semantics while preventing tiny tail-hinge scale, post-combination normalization, random initial risk baseline, and critic spikes from suppressing primal risk response."
+  },
+  "tail_credit": {
+    "mechanism": "action_conditioned_monte_carlo_tail_q_with_policy_consistent_q_baseline",
+    "episode_tail_cost": "h=(1/alpha)*max(tau-R,0), identical to RCWA v1-v3 and frozen after the 54-episode rollout.",
+    "risk_value_target": "Monte-Carlo complete-episode risk return h_i on every transition (gamma=1), identical to RCWA v3.",
+    "risk_critic_prefit": "Before actor PPO optimization, fit ONLY V_tail(s) to the frozen MC risk returns on the same on-policy batch.",
+    "risk_credit_prefit_epochs": 10,
+    "risk_credit_prefit_minibatch_size": 450,
+    "risk_credit_prefit_learning_rate": "optimizer.learning_rate (1e-4), existing shared Adam; actor/reward critic receive no gradients.",
+    "tail_q_definition": "Q_tail(s_t,a_t) approximates E[h_i | s_t,a_t] under the current on-policy data.",
+    "tail_q_action": "a_t is the sampled hierarchical behavior action before WaterBudgetController projection: gate g_t plus active-only amount_fraction u_t=(tanh(raw_amount_t)+1)/2; u_t=0 for no-op.",
+    "tail_q_hidden_dims": [
+      256,
+      128
+    ],
+    "tail_q_output_initialization": "zero_value_head",
+    "tail_q_target": "the same Monte-Carlo complete-episode tail return h_i used by V_tail; no bootstrapping and no new tail label.",
+    "tail_q_prefit": "After V_tail prefit, fit ONLY Q_tail to the same frozen MC risk returns on the same 6750 transitions.",
+    "tail_q_prefit_epochs": 10,
+    "tail_q_prefit_epochs_rationale": "Matched to optimizer.update_epochs and V-tail prefit epochs; not tuned independently.",
+    "tail_q_prefit_minibatch_size": 450,
+    "tail_q_prefit_learning_rate": "optimizer.learning_rate (1e-4), existing shared Adam; Q_tail is appended after all v3 parameters.",
+    "tail_q_prefit_trainable_parameters": [
+      "tail_q_critic"
+    ],
+    "tail_q_prefit_gradient_clipping": "clip only Q_tail gradients at max_grad_norm=0.5",
+    "actor_credit": "A_tail(s,a)=Q_tail(s,a)-E_{a_prime~pi(.|s)}[Q_tail(s,a_prime)]; Bernoulli gate expectation exact, active amount expectation by fixed 128-point Gauss-Hermite quadrature; computed under no_grad after v4-identical prefits and detached for PPO.",
+    "actor_credit_combination": "A_actor=z_global(A_reward)-lambda_eta*z_within_eta(A_tail), identical v2/v3 component conditioning after replacing the tail-credit tensor.",
+    "actor_credit_frozen": "Q_tail and V_tail are not recomputed for actor credit during PPO minibatch epochs.",
+    "main_ppo_q_update": "Q_tail receives no gradient during the main PPO epochs; its only updates are the prefit steps before actor credit is frozen.",
+    "long_horizon_rationale": "The Q target is the full remaining episodic tail outcome h_i rather than a one-step bootstrapped TD residual, while explicit action input lets the critic model gate/amount dependence.",
+    "extra_environment_episodes": 0,
+    "no_new_risk_objective": true,
+    "no_distributional_critic": true,
+    "no_schedule_prior": "No conventional schedule, stage threshold, DAP pacing penalty, reward shaping, action-frequency reweighting, weather split/cross-fit, dynamic CVaR, distributional return critic or extra expected-shortfall objective is introduced.",
+    "policy_q_baseline": "V_Q(s)=(1-p_gate)Q(s,[0,0])+p_gate*E_{z~N(mu,sigma)}Q(s,[1,(tanh(z)+1)/2]). The same frozen Q_tail supplies observed Q and baseline; independent V_tail is not subtracted from actor credit.",
+    "policy_q_baseline_quadrature": "Fixed 128-point Gauss-Hermite numerical integration, not tuned against training or validation outcomes; no policy RNG is consumed.",
+    "risk_critic_role": "V_tail prefit/value-loss/checkpoint behavior is preserved exactly from v4 for isolation and diagnostics, but V_tail is not used in actor risk-credit subtraction."
+  },
+  "rollout": {
+    "episodes_per_update": 54,
+    "episodes_per_eta_per_update": 18,
+    "horizon_days_per_episode": 125,
+    "transitions_per_update": 6750,
+    "complete_episodes_only": true,
+    "strictly_on_policy": true,
+    "normalizer_frozen_within_rollout": true,
+    "risk_assignment_time": "after all 54 episodes are collected and before PPO optimization"
+  },
+  "interaction_budget": {
+    "max_updates_per_seed": 200,
+    "training_episodes_per_seed": 10800,
+    "decision_transitions_per_seed": 1350000,
+    "training_episodes_all_five_seeds": 54000,
+    "decision_transitions_all_five_seeds": 6750000,
+    "fairness_rule": "Exactly the same maximum training interaction budget as PPO v1 and PPO-Lagrangian v1; risk estimation and dual updates use only the existing 54 rollout episodes."
+  },
+  "training": {
+    "seeds": [
+      11,
+      21,
+      31,
+      41,
+      51
+    ],
+    "max_updates": 200,
+    "recovery_checkpoint_interval_updates": 1,
+    "candidate_checkpoint_interval_updates": 10,
+    "validation_interval_updates": 10,
+    "candidate_checkpoint_count_per_seed": 20,
+    "validation_episodes_per_candidate": 15,
+    "validation_episodes_per_seed": 300,
+    "validation_action_mode": "deterministic",
+    "final_test_action_mode": "deterministic",
+    "checkpoint_selection_contract": "awm-learned-method-evaluation-v1",
+    "seed_selection": "forbidden"
+  },
+  "evaluation": {
+    "formal_metric": "LCVaR_0.20 retention by eta",
+    "validation_action_mode": "deterministic",
+    "final_test_action_mode": "deterministic",
+    "same_selector_as_ppo": true,
+    "station_final_test_locked": true
+  },
+  "change_rule": "RCWA v4 is a new protocol derived from v3 forensic evidence. Relative to v3, the scientific mechanism change is action-conditioned long-horizon tail credit: add scalar Q_tail(s,a), prefit it to the unchanged Monte-Carlo episode tail cost, and use Q_tail-V_tail as actor tail advantage instead of the one-step Tail-TD residual. All lower-CVaR semantics, dual hyperparameters, actor/reward/risk-value architecture, interaction budget, seeds, checkpoint cadence, water budget and evaluation protocol remain unchanged."
+}
