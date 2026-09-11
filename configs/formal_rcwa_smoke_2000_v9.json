@@ -1,0 +1,11 @@
+{
+  "status": "rcwa_v9_integration_smoke_only",
+  "rcwa_protocol_id": "awm-rcwa-rl-v9",
+  "weather_year": 2000,
+  "weather_split": "train",
+  "eta": 0.95,
+  "seed": 21,
+  "device": "cpu",
+  "state_normalization": false,
+  "note": "One untrained v9 actor episode verifies actor/action/DSSAT/retention bookkeeping only. Exact-KL trust-region learning requires the balanced 54-cell update gate."
+}
