@@ -107,7 +107,7 @@ def _exact_kl_for_scaled_direction(
     alpha:float, old_gate:torch.Tensor, old_mean:torch.Tensor, old_scale:torch.Tensor,
 )->float:
     params=list(agent.actor.parameters())
-    agent._set_flat_parameters(params,base+float(alpha)*direction)
+    agent._set_flat_parameters(params,base+float(alpha)*direction.to(base.device))
     try:
         return float(agent._mean_exact_kl(
             states,old_gate_logits=old_gate,old_mean=old_mean,old_scale=old_scale,
