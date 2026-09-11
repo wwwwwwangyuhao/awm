@@ -107,6 +107,9 @@ def _signed_alpha_for_kl(
     sign: float,
 ) -> tuple[float, float]:
     params = list(agent.actor.parameters())
+    # Every signed solve must use the same frozen base policy as its KL reference.
+    # The caller may have just materialized the opposite-sign variant.
+    agent._set_flat_parameters(params, base)
     with torch.no_grad():
         old_dist, old_gate = agent.actor.components(states)
         old_mean = old_dist.loc.detach().clone()
@@ -216,6 +219,7 @@ def prepare(root: Path, output: Path, runtime_base: Path, device: str) -> None:
             torch.save(_cpu_state_dict(agent.actor), variants / f"{name}_{label}.pt")
             entry[f"{label}_alpha"] = alpha
             entry[f"{label}_exact_kl"] = achieved
+            agent._set_flat_parameters(params, base)
         agent._set_flat_parameters(params, base)
         direction_meta[name] = entry
 
