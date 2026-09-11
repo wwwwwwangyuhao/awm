@@ -16,6 +16,7 @@ from .agent import RCWAAgent
 from .agent_v3 import RCWAV3Agent
 from .agent_v4 import RCWAV4Agent
 from .agent_v6 import RCWAV6Agent
+from .agent_v8 import RCWAV8Agent
 from .signals import RCWAEpisodeSignals
 
 
@@ -28,6 +29,8 @@ def _smoke_protocol_spec(protocol_id: str):
         return RCWAV4Agent, "rcwa_rl_v4"
     if protocol_id == "awm-rcwa-rl-v6":
         return RCWAV6Agent, "rcwa_rl_v6"
+    if protocol_id == "awm-rcwa-rl-v8":
+        return RCWAV8Agent, "rcwa_rl_v8"
     raise ValueError("RCWA smoke protocol id mismatch")
 
 

@@ -1,0 +1,11 @@
+{
+  "status": "rcwa_v8_integration_smoke_only",
+  "rcwa_protocol_id": "awm-rcwa-rl-v8",
+  "weather_year": 2000,
+  "weather_split": "train",
+  "eta": 0.95,
+  "seed": 21,
+  "device": "cpu",
+  "state_normalization": false,
+  "note": "One untrained v8 actor episode verifies unchanged actor/action/DSSAT/retention bookkeeping only. Twin-Q reliability requires the balanced 54-cell update gate."
+}
